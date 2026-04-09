@@ -188,23 +188,66 @@
     .bubble-close { background: none; border: none; cursor: pointer; color: var(--text-ter); font-size: 16px; padding: 0 2px; line-height: 1; }
     .bubble-close:hover { color: var(--text); }
 
+    /* ── BUSCADOR EN BURBUJA ── */
+    .bubble-search-row {
+      padding: 6px 14px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 6px;
+    }
+    .bubble-search-row input {
+      flex: 1; font-size: 12px; font-family: var(--font);
+      border: 1px solid var(--border-md); border-radius: var(--radius-md);
+      padding: 4px 8px; background: var(--bg-sec); color: var(--text); outline: none;
+    }
+    .bubble-search-row input:focus { border-color: var(--info-text); box-shadow: 0 0 0 2px var(--info-bg); }
+    .bubble-search-count { font-size: 11px; color: var(--text-ter); white-space: nowrap; }
+
     .bubble-comments {
       flex: 1; overflow-y: auto; padding: 10px 14px;
-      display: flex; flex-direction: column; gap: 8px;
+      display: flex; flex-direction: column; gap: 0;
     }
     .bubble-comments:empty::after {
       content: 'Sin comentarios aún.'; color: var(--text-ter);
       font-size: 12px; text-align: center; padding: 1rem 0;
     }
+
+    /* ── TIMELINE ── */
+    .comment-timeline-item {
+      display: flex; gap: 10px; position: relative;
+    }
+    .comment-timeline-item:not(:last-child)::before {
+      content: ''; position: absolute;
+      left: 15px; top: 28px; bottom: -4px;
+      width: 1px; background: var(--border);
+    }
+    .comment-dot {
+      flex-shrink: 0; width: 10px; height: 10px; border-radius: 50%;
+      background: var(--info-text); border: 2px solid var(--info-bg);
+      margin-top: 9px; z-index: 1;
+    }
+    .comment-body { flex: 1; padding-bottom: 12px; }
+
     .comment-item {
       background: var(--bg-sec); border: 1px solid var(--border);
       border-radius: var(--radius-md); padding: 8px 10px; font-size: 12px;
     }
+    .comment-item.highlight { background: #fff9e6; border-color: var(--warn-border); }
     .comment-meta {
       font-size: 10px; color: var(--text-ter); margin-bottom: 4px;
-      display: flex; justify-content: space-between; align-items: center;
+      display: flex; justify-content: space-between; align-items: center; gap: 6px; flex-wrap: wrap;
     }
-    .comment-text { color: var(--text); line-height: 1.5; }
+    .comment-num { font-weight: 700; color: var(--text-sec); }
+    .comment-time-exact { color: var(--text-ter); }
+    .comment-time-rel {
+      background: var(--bg-ter); border-radius: 4px;
+      padding: 1px 5px; font-size: 10px; color: var(--text-sec);
+    }
+    .comment-text { color: var(--text); line-height: 1.55; word-break: break-word; }
+    .comment-text.collapsed { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .comment-expand-btn {
+      font-size: 10px; color: var(--info-text); background: none; border: none;
+      cursor: pointer; padding: 2px 0; margin-top: 3px; display: block;
+    }
+    .comment-expand-btn:hover { text-decoration: underline; }
     .comment-edit-input {
       width: 100%; font-size: 12px; font-family: var(--font);
       border: 1px solid var(--info-border); border-radius: 5px;
@@ -213,6 +256,7 @@
     }
     .comment-actions { display: flex; gap: 5px; margin-top: 5px; }
     .comment-actions button { font-size: 10px; padding: 2px 8px; }
+    .no-results-bubble { font-size: 12px; color: var(--text-ter); text-align: center; padding: 1.5rem 0; }
 
     .bubble-input-area {
       padding: 10px 14px; border-top: 1px solid var(--border);
@@ -259,6 +303,7 @@
     }
     .rec-vencido  { background: #e53e3e; box-shadow: 0 0 0 3px #fcebeb; }
     .rec-ok       { background: #38a169; box-shadow: 0 0 0 3px #eaf3de; }
+    .rec-amarillo { background: #d97706; box-shadow: 0 0 0 3px #fef3c7; }
     .rec-none     { background: #d1d1ce; }
 
     .rec-cell { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-sec); }
@@ -283,8 +328,9 @@
     .alert-list { display: flex; flex-direction: column; gap: 8px; }
 
     /* Fila resaltada en tabla */
-    tbody tr.fila-vencida td { background: #fff5f5 !important; }
-    tbody tr.fila-ok     td { background: #f0fff4 !important; }
+    tbody tr.fila-vencida  td { background: #fff5f5 !important; }
+    tbody tr.fila-ok       td { background: #f0fff4 !important; }
+    tbody tr.fila-amarilla td { background: #fffbeb !important; }
 
     /* Campo fecha recordatorio en burbuja */
     .bubble-rec-row {
@@ -593,6 +639,10 @@
     <input type="date" id="bubbleRecDate" onchange="guardarRecordatorio()">
     <span id="bubbleRecBadge" class="bubble-rec-badge" style="display:none"></span>
   </div>
+  <div class="bubble-search-row" id="bubbleSearchRow" style="display:none">
+    <input type="text" id="bubbleSearchInput" placeholder="Buscar en comentarios..." oninput="filtrarComentarios()">
+    <span class="bubble-search-count" id="bubbleSearchCount"></span>
+  </div>
   <div class="bubble-comments" id="bubbleComments"></div>
   <div class="bubble-input-area">
     <textarea id="bubbleNewText" placeholder="Agregar comentario de seguimiento..."></textarea>
@@ -772,7 +822,7 @@ function badgeClass(e) {
 function toggleColor(id) {
   const d = datos.find(d => d.id === id);
   if (!d) return;
-  const ciclo = { ninguno: 'verde', verde: 'rojo', rojo: 'ninguno' };
+  const ciclo = { ninguno: 'verde', verde: 'amarillo', amarillo: 'rojo', rojo: 'ninguno' };
   d.colorEstado = ciclo[d.colorEstado || 'ninguno'];
   guardarDatos();
   renderTabla();
@@ -782,10 +832,12 @@ function toggleColor(id) {
 function recDotHTML(d) {
   const color = d.colorEstado || 'ninguno';
   if (color === 'verde')
-    return `<span class="rec-dot rec-ok" title="Clic para cambiar a rojo" style="cursor:pointer" onclick="toggleColor(${d.id})"></span>`;
+    return `<span class="rec-dot rec-ok" title="Clic → amarillo" style="cursor:pointer" onclick="toggleColor(${d.id})"></span>`;
+  if (color === 'amarillo')
+    return `<span class="rec-dot rec-amarillo" title="Clic → rojo" style="cursor:pointer" onclick="toggleColor(${d.id})"></span>`;
   if (color === 'rojo')
-    return `<span class="rec-dot rec-vencido" title="Clic para cambiar a verde" style="cursor:pointer" onclick="toggleColor(${d.id})"></span>`;
-  return `<span class="rec-dot rec-none" title="Clic para activar" style="cursor:pointer" onclick="toggleColor(${d.id})"></span>`;
+    return `<span class="rec-dot rec-vencido" title="Clic → sin color" style="cursor:pointer" onclick="toggleColor(${d.id})"></span>`;
+  return `<span class="rec-dot rec-none" title="Clic → verde" style="cursor:pointer" onclick="toggleColor(${d.id})"></span>`;
 }
 
 function formatFechaSep(f) {
@@ -840,7 +892,7 @@ function renderTabla() {
       const count2  = coments.length;
       const preview = count2 > 0 ? `💬 ${count2} comentario${count2 > 1 ? 's' : ''}` : '+ Agregar';
       const cls     = count2 > 0 ? '' : 'empty-seg';
-      const filaClass = d.colorEstado === 'rojo' ? 'fila-vencida' : d.colorEstado === 'verde' ? 'fila-ok' : '';
+      const filaClass = d.colorEstado === 'rojo' ? 'fila-vencida' : d.colorEstado === 'verde' ? 'fila-ok' : d.colorEstado === 'amarillo' ? 'fila-amarilla' : '';
       html += `
       <tr class="${filaClass}">
         <td style="color:var(--text-ter)">${numGlobal--}</td>
@@ -885,6 +937,8 @@ function abrirBurbuja(event, id) {
   document.getElementById('bubbleName').textContent = registro.nombre !== '—' ? registro.nombre : 'Sin nombre';
   document.getElementById('bubbleDni').textContent  = 'DNI: ' + (registro.dni || '—');
   document.getElementById('bubbleNewText').value    = '';
+  document.getElementById('bubbleSearchInput').value = '';
+  document.getElementById('bubbleSearchCount').textContent = '';
 
   // Recordatorio
   const recInput = document.getElementById('bubbleRecDate');
@@ -897,12 +951,18 @@ function abrirBurbuja(event, id) {
   const overlay = document.getElementById('bubbleOverlay');
   const rect    = event.currentTarget.getBoundingClientRect();
   const bW = 340, bH = 420, margin = 8;
-  let top  = rect.bottom + margin + window.scrollY;
-  let left = rect.left   + window.scrollX;
-  if (left + bW > window.innerWidth - margin) left = window.innerWidth - bW - margin;
-  if (rect.bottom + bH + margin > window.innerHeight) top = rect.top + window.scrollY - bH - margin;
-  bubble.style.top  = Math.max(margin, top)  + 'px';
-  bubble.style.left = Math.max(margin, left) + 'px';
+  const vW = window.innerWidth, vH = window.innerHeight;
+
+  let top  = rect.bottom + margin;
+  let left = rect.left;
+
+  if (left + bW > vW - margin) left = vW - bW - margin;
+  if (left < margin) left = margin;
+  if (top + bH > vH - margin) top = rect.top - bH - margin;
+  if (top < margin) top = margin;
+
+  bubble.style.top  = top  + 'px';
+  bubble.style.left = left + 'px';
   bubble.classList.add('open');
   overlay.classList.add('open');
   document.getElementById('bubbleNewText').focus();
@@ -956,23 +1016,37 @@ function alertItemHTML(d, dotClass, titulo, estiloExtra) {
 }
 
 function renderAlertas() {
-  const rojos  = datos.filter(d => d.colorEstado === 'rojo');
-  const verdes = datos.filter(d => d.colorEstado === 'verde');
-  const grises = datos.filter(d => !d.colorEstado || d.colorEstado === 'ninguno');
+  const rojos     = datos.filter(d => d.colorEstado === 'rojo');
+  const amarillos = datos.filter(d => d.colorEstado === 'amarillo');
+  const verdes    = datos.filter(d => d.colorEstado === 'verde');
+  const grises    = datos.filter(d => !d.colorEstado || d.colorEstado === 'ninguno');
 
   const listV = document.getElementById('alertas-list');
   listV.parentElement.querySelector('.card-title').textContent = 'Contactos en rojo';
   listV.innerHTML = rojos.length
-    ? rojos.map(d => alertItemHTML(d, 'rec-vencido', 'Clic → verde', '')).join('')
+    ? rojos.map(d => alertItemHTML(d, 'rec-vencido', 'Clic → sin color', '')).join('')
     : '<div class="empty">No hay contactos marcados en rojo.</div>';
+
+  // Panel amarillo (si no existe, crearlo después de rojo)
+  let listA = document.getElementById('amarillos-list');
+  if (!listA) {
+    const card = document.createElement('div');
+    card.className = 'card'; card.style.marginTop = '1rem';
+    card.innerHTML = '<div class="card-title">Contactos en amarillo</div><div class="alert-list" id="amarillos-list"></div>';
+    listV.parentElement.insertAdjacentElement('afterend', card);
+    listA = document.getElementById('amarillos-list');
+  }
+  listA.parentElement.querySelector('.card-title').textContent = 'Contactos en amarillo';
+  listA.innerHTML = amarillos.length
+    ? amarillos.map(d => alertItemHTML(d, 'rec-amarillo', 'Clic → rojo', 'style="border-color:#fcd34d;background:#fffbeb"')).join('')
+    : '<div class="empty">No hay contactos marcados en amarillo.</div>';
 
   const listP = document.getElementById('proximos-list');
   listP.parentElement.querySelector('.card-title').textContent = 'Contactos en verde';
   listP.innerHTML = verdes.length
-    ? verdes.map(d => alertItemHTML(d, 'rec-ok', 'Clic → rojo', 'style="border-color:var(--ok-border);background:var(--ok-bg)"')).join('')
+    ? verdes.map(d => alertItemHTML(d, 'rec-ok', 'Clic → amarillo', 'style="border-color:var(--ok-border);background:var(--ok-bg)"')).join('')
     : '<div class="empty">No hay contactos marcados en verde.</div>';
 
-  // Panel gris (si no existe, crearlo)
   let listG = document.getElementById('grises-list');
   if (!listG) {
     const card = document.createElement('div');
@@ -993,27 +1067,104 @@ function cerrarBurbuja() {
   activeBubbleId = null;
 }
 
-function renderBubbleComments(registro) {
+function tiempoRelativo(fechaStr) {
+  if (!fechaStr) return '';
+  try {
+    const partes = fechaStr.replace(' (editado)', '').split(/[/, :]/);
+    let d;
+    if (partes.length >= 5) {
+      d = new Date(+partes[2], +partes[1]-1, +partes[0], +partes[3], +partes[4]);
+    } else {
+      d = new Date(fechaStr.replace(' (editado)', ''));
+    }
+    if (isNaN(d)) return '';
+    const diff = Date.now() - d.getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1)  return 'ahora mismo';
+    if (mins < 60) return `hace ${mins} min`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24)  return `hace ${hrs}h`;
+    const dias = Math.floor(hrs / 24);
+    if (dias < 7)  return `hace ${dias}d`;
+    const sem = Math.floor(dias / 7);
+    if (sem < 5)   return `hace ${sem} sem`;
+    return `hace ${Math.floor(dias/30)} mes${Math.floor(dias/30)>1?'es':''}`;
+  } catch { return ''; }
+}
+
+function renderBubbleComments(registro, filtro) {
   const container = document.getElementById('bubbleComments');
   const coments   = registro.comentarios || [];
+
+  const searchRow = document.getElementById('bubbleSearchRow');
+  searchRow.style.display = coments.length > 2 ? 'flex' : 'none';
+  if (coments.length <= 2) {
+    document.getElementById('bubbleSearchInput').value = '';
+    document.getElementById('bubbleSearchCount').textContent = '';
+  }
+
   if (!coments.length) { container.innerHTML = ''; return; }
-  container.innerHTML = coments.map(c => `
-    <div class="comment-item" id="ci-${c.id}">
-      <div class="comment-meta">
-        <span>${c.fecha}</span>
-        <div style="display:flex;gap:4px">
-          <button onclick="editarComentario(${c.id})" style="font-size:10px;padding:1px 7px;color:var(--info-text);border-color:var(--info-border);background:var(--info-bg)">Editar</button>
-          <button onclick="eliminarComentario(${c.id})" style="font-size:10px;padding:1px 7px;color:var(--danger-text);border-color:var(--danger-border);background:var(--danger-bg)">✕</button>
+
+  const q = (filtro || '').toLowerCase().trim();
+  const visibles = q ? coments.filter(c => c.texto.toLowerCase().includes(q)) : coments;
+
+  if (q && !visibles.length) {
+    container.innerHTML = `<div class="no-results-bubble">Sin resultados para "<strong>${escHTML(q)}</strong>"</div>`;
+    document.getElementById('bubbleSearchCount').textContent = '0 resultados';
+    return;
+  }
+  if (q) document.getElementById('bubbleSearchCount').textContent = `${visibles.length} de ${coments.length}`;
+  else   document.getElementById('bubbleSearchCount').textContent = coments.length > 2 ? `${coments.length} comentarios` : '';
+
+  const totalComents = coments.length;
+  container.innerHTML = visibles.map((c, idx) => {
+    const numReal = coments.indexOf(c) + 1;
+    const rel = tiempoRelativo(c.fecha);
+    const isLong = c.texto.length > 180 || c.texto.split('\n').length > 3;
+    const editado = c.fecha.includes('(editado)') ? ' <span style="color:var(--text-ter)">(editado)</span>' : '';
+    return `
+    <div class="comment-timeline-item" id="ci-wrap-${c.id}">
+      <div class="comment-dot"></div>
+      <div class="comment-body">
+        <div class="comment-item${q && c.texto.toLowerCase().includes(q) ? ' highlight' : ''}" id="ci-${c.id}">
+          <div class="comment-meta">
+            <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+              <span class="comment-num">#${numReal}</span>
+              <span class="comment-time-exact">${c.fecha.replace(' (editado)','')}</span>${editado}
+              ${rel ? `<span class="comment-time-rel">${rel}</span>` : ''}
+            </div>
+            <div style="display:flex;gap:4px">
+              <button onclick="editarComentario(${c.id})" style="font-size:10px;padding:1px 7px;color:var(--info-text);border-color:var(--info-border);background:var(--info-bg)">Editar</button>
+              <button onclick="eliminarComentario(${c.id})" style="font-size:10px;padding:1px 7px;color:var(--danger-text);border-color:var(--danger-border);background:var(--danger-bg)">✕</button>
+            </div>
+          </div>
+          <div class="comment-text${isLong ? ' collapsed' : ''}" id="ct-${c.id}">${escHTML(c.texto)}</div>
+          ${isLong ? `<button class="comment-expand-btn" id="ceb-${c.id}" onclick="toggleExpandComentario(${c.id})">▼ Ver más</button>` : ''}
+          <textarea class="comment-edit-input" id="ce-${c.id}" style="display:none">${escHTML(c.texto)}</textarea>
+          <div class="comment-actions" id="ca-${c.id}" style="display:none">
+            <button class="primary" style="font-size:10px;padding:2px 8px" onclick="guardarEdicion(${c.id})">Guardar</button>
+            <button style="font-size:10px;padding:2px 8px" onclick="cancelarEdicion(${c.id})">Cancelar</button>
+          </div>
         </div>
       </div>
-      <div class="comment-text" id="ct-${c.id}">${escHTML(c.texto)}</div>
-      <textarea class="comment-edit-input" id="ce-${c.id}" style="display:none">${escHTML(c.texto)}</textarea>
-      <div class="comment-actions" id="ca-${c.id}" style="display:none">
-        <button class="primary" style="font-size:10px;padding:2px 8px" onclick="guardarEdicion(${c.id})">Guardar</button>
-        <button style="font-size:10px;padding:2px 8px" onclick="cancelarEdicion(${c.id})">Cancelar</button>
-      </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
+}
+
+function toggleExpandComentario(cid) {
+  const el  = document.getElementById('ct-' + cid);
+  const btn = document.getElementById('ceb-' + cid);
+  if (!el || !btn) return;
+  const collapsed = el.classList.toggle('collapsed');
+  btn.textContent = collapsed ? '▼ Ver más' : '▲ Ver menos';
+}
+
+function filtrarComentarios() {
+  if (!activeBubbleId) return;
+  const registro = datos.find(d => d.id === activeBubbleId);
+  if (!registro) return;
+  const q = document.getElementById('bubbleSearchInput').value;
+  renderBubbleComments(registro, q);
 }
 
 function escHTML(str) {
@@ -1029,6 +1180,7 @@ function agregarComentario() {
   if (!registro.comentarios) registro.comentarios = [];
   registro.comentarios.push({ id: Date.now(), texto: txt, fecha: new Date().toLocaleString('es-PE') });
   document.getElementById('bubbleNewText').value = '';
+  document.getElementById('bubbleSearchInput').value = '';
   guardarDatos();
   renderBubbleComments(registro);
   renderTabla();
