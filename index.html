@@ -230,6 +230,112 @@
     .bubble-overlay { display: none; position: fixed; inset: 0; z-index: 999; }
     .bubble-overlay.open { display: block; }
 
+    /* ── SEPARADOR DE FECHA ── */
+    .fecha-separador td {
+      padding: 14px 8px 6px;
+      border-bottom: none;
+      background: transparent !important;
+    }
+    .fecha-separador-inner {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .fecha-separador-label {
+      font-size: 11px; font-weight: 700; color: var(--text-sec);
+      text-transform: uppercase; letter-spacing: 0.08em;
+      white-space: nowrap;
+    }
+    .fecha-separador-line {
+      flex: 1; height: 1px; background: var(--border);
+    }
+    .fecha-separador-count {
+      font-size: 10px; color: var(--text-ter);
+      white-space: nowrap;
+    }
+
+    /* ── INDICADOR RECORDATORIO ── */
+    .rec-dot {
+      display: inline-block; width: 10px; height: 10px;
+      border-radius: 50%; flex-shrink: 0;
+    }
+    .rec-vencido  { background: #e53e3e; box-shadow: 0 0 0 3px #fcebeb; }
+    .rec-ok       { background: #38a169; box-shadow: 0 0 0 3px #eaf3de; }
+    .rec-none     { background: #d1d1ce; }
+
+    .rec-cell { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-sec); }
+
+    /* ── PANEL ALERTAS ── */
+    .alert-count {
+      display: inline-flex; align-items: center; justify-content: center;
+      background: #e53e3e; color: #fff; border-radius: 999px;
+      font-size: 10px; font-weight: 700; min-width: 18px; height: 18px;
+      padding: 0 5px; margin-left: 6px; vertical-align: middle;
+    }
+    .alert-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px; border-radius: var(--radius-md);
+      border: 1px solid var(--danger-border); background: var(--danger-bg);
+      font-size: 13px;
+    }
+    .alert-item .ai-info { flex: 1; }
+    .alert-item .ai-name { font-weight: 600; color: var(--danger-text); }
+    .alert-item .ai-meta { font-size: 11px; color: var(--text-sec); margin-top: 2px; }
+    .alert-item .ai-comment { font-size: 11px; color: var(--text-sec); margin-top: 4px; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 340px; }
+    .alert-list { display: flex; flex-direction: column; gap: 8px; }
+
+    /* Fila resaltada en tabla */
+    tbody tr.fila-vencida td { background: #fff5f5 !important; }
+    tbody tr.fila-ok     td { background: #f0fff4 !important; }
+
+    /* Campo fecha recordatorio en burbuja */
+    .bubble-rec-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 14px; border-bottom: 1px solid var(--border);
+      font-size: 12px; color: var(--text-sec);
+    }
+    .bubble-rec-row label { white-space: nowrap; }
+    .bubble-rec-row input[type=date] {
+      font-size: 12px; padding: 4px 8px;
+      border: 1px solid var(--border-md); border-radius: var(--radius-md);
+      background: var(--bg-sec); color: var(--text);
+      font-family: var(--font); outline: none; flex: 1;
+    }
+    .bubble-rec-row input[type=date]:focus { border-color: var(--info-text); box-shadow: 0 0 0 2px var(--info-bg); }
+    .bubble-rec-badge {
+      font-size: 11px; padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+    }
+    .brb-vencido { background: var(--danger-bg); color: var(--danger-text); }
+    .brb-ok      { background: var(--ok-bg);     color: var(--ok-text); }
+
+    /* ── MODAL EDICIÓN ── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; z-index: 2000;
+      background: rgba(0,0,0,0.35); backdrop-filter: blur(2px);
+      align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: var(--bg); border: 1px solid var(--border-md);
+      border-radius: var(--radius-lg); width: 100%; max-width: 500px;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.2); overflow: hidden;
+      animation: bubbleIn .18s ease;
+    }
+    .modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 18px; border-bottom: 1px solid var(--border);
+      font-size: 14px; font-weight: 600;
+    }
+    .modal-body { padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+    .modal-footer {
+      display: flex; gap: 8px; justify-content: flex-end;
+      padding: 12px 18px; border-top: 1px solid var(--border);
+      background: var(--bg-sec);
+    }
+    .edit-btn {
+      font-size: 11px; padding: 3px 8px;
+      color: var(--info-text); border-color: var(--info-border);
+      background: var(--info-bg);
+    }
+
     /* ── BACKUP CARD ── */
     .backup-info {
       font-size: 12px; color: var(--text-sec); line-height: 1.6;
@@ -267,6 +373,7 @@
   <!-- TABS -->
   <div class="tabs">
     <button class="tab active" onclick="switchTab('registro')">Registro</button>
+    <button class="tab" onclick="switchTab('alertas')" id="tab-btn-alertas">Alertas<span id="alert-badge" class="alert-count" style="display:none">0</span></button>
     <button class="tab" onclick="switchTab('excel')">Excel virtual</button>
     <button class="tab" onclick="switchTab('backup')">Copia de seguridad</button>
   </div>
@@ -279,7 +386,7 @@
       <div class="form-grid">
         <div class="field">
           <label>DNI <span class="opt">(opcional)</span></label>
-          <input id="f-dni" placeholder="12345678" maxlength="8">
+          <input id="f-dni" placeholder="12345678" maxlength="20">
         </div>
         <div class="field">
           <label>Nombre completo <span class="opt">(opcional)</span></label>
@@ -287,7 +394,7 @@
         </div>
         <div class="field">
           <label>Celular <span class="opt">(opcional)</span></label>
-          <input id="f-celular" placeholder="9XXXXXXXX" maxlength="9">
+          <input id="f-celular" placeholder="999 999 999" maxlength="20">
         </div>
         <div class="field">
           <label>Fecha de contacto <span class="opt">(opcional)</span></label>
@@ -341,7 +448,7 @@
           <thead>
             <tr>
               <th>#</th><th>DNI</th><th>Nombre</th><th>Celular</th>
-              <th>Fecha</th><th>Estado</th><th>Seguimiento</th><th></th>
+              <th>Fecha</th><th>Estado</th><th>Recordatorio</th><th>Seguimiento</th><th></th>
             </tr>
           </thead>
           <tbody id="tabla-body"></tbody>
@@ -361,6 +468,25 @@
       <div class="tbl-wrap xl-preview" id="xl-preview"></div>
       <div class="btn-row" style="margin-top:1rem;">
         <button class="success" onclick="exportarExcel()">⬇ Descargar .xlsx</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: ALERTAS ══ -->
+  <div id="tab-alertas" class="panel">
+    <div class="card">
+      <div class="card-title">Recordatorios vencidos</div>
+      <p style="font-size:13px;color:var(--text-sec);margin-bottom:1rem;">
+        Contactos cuya fecha de recordatorio ya pasó y siguen en estado <strong>Pendiente</strong> o <strong>Contactado</strong>.
+      </p>
+      <div class="alert-list" id="alertas-list">
+        <div class="empty">No hay recordatorios vencidos. ¡Todo al día! 🎉</div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:1rem;">
+      <div class="card-title">Próximos recordatorios (hoy y mañana)</div>
+      <div class="alert-list" id="proximos-list">
+        <div class="empty">No hay recordatorios próximos.</div>
       </div>
     </div>
   </div>
@@ -409,6 +535,49 @@
 
 </div><!-- /wrapper -->
 
+<!-- ══ MODAL DE EDICIÓN ══ -->
+<div class="modal-overlay" id="editModalOverlay" onclick="cerrarModal(event)">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      ✏️ Editar registro
+      <button class="bubble-close" onclick="cerrarModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field">
+          <label>DNI <span class="opt">(opcional)</span></label>
+          <input id="e-dni" placeholder="12345678" maxlength="20">
+        </div>
+        <div class="field">
+          <label>Nombre completo <span class="opt">(opcional)</span></label>
+          <input id="e-nombre" placeholder="Nombre y apellido">
+        </div>
+        <div class="field">
+          <label>Celular <span class="opt">(opcional)</span></label>
+          <input id="e-celular" placeholder="999 999 999" maxlength="20">
+        </div>
+        <div class="field">
+          <label>Fecha de contacto</label>
+          <input type="date" id="e-fecha">
+        </div>
+        <div class="field">
+          <label>Estado</label>
+          <select id="e-estado">
+            <option>Pendiente</option>
+            <option>Contactado</option>
+            <option>Cerrado</option>
+          </select>
+        </div>
+      </div>
+      <div id="msg-edit" class="msg"></div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="cerrarModal()">Cancelar</button>
+      <button class="primary" onclick="guardarEdicionRegistro()">💾 Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ BURBUJA DE SEGUIMIENTO ══ -->
 <div class="bubble-overlay" id="bubbleOverlay" onclick="cerrarBurbuja()"></div>
 <div class="seg-bubble" id="segBubble">
@@ -418,6 +587,11 @@
       <div style="font-size:11px;color:var(--text-ter)" id="bubbleDni">—</div>
     </div>
     <button class="bubble-close" onclick="cerrarBurbuja()">✕</button>
+  </div>
+  <div class="bubble-rec-row">
+    <label>📅 Recordatorio:</label>
+    <input type="date" id="bubbleRecDate" onchange="guardarRecordatorio()">
+    <span id="bubbleRecBadge" class="bubble-rec-badge" style="display:none"></span>
   </div>
   <div class="bubble-comments" id="bubbleComments"></div>
   <div class="bubble-input-area">
@@ -493,13 +667,14 @@ function mostrarIndicadorGuardado() {
    TABS
    ═══════════════════════════════════ */
 function switchTab(id) {
-  const ids = ['registro', 'excel', 'backup'];
+  const ids = ['registro', 'alertas', 'excel', 'backup'];
   document.querySelectorAll('.tab').forEach((t, i) =>
     t.classList.toggle('active', ids[i] === id));
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + id).classList.add('active');
-  if (id === 'excel') renderExcelPreview();
-  if (id === 'backup') renderStorageInfo();
+  if (id === 'excel')   renderExcelPreview();
+  if (id === 'backup')  renderStorageInfo();
+  if (id === 'alertas') renderAlertas();
 }
 
 /* ═══════════════════════════════════
@@ -525,8 +700,8 @@ function agregar() {
   const estado      = document.getElementById('f-estado').value;
   const seguimiento = document.getElementById('f-seguimiento').value.trim();
 
-  if (dni && !/^\d{8}$/.test(dni)) return mostrarMsg('Si ingresas DNI, debe tener exactamente 8 dígitos.');
-  if (celular && !/^9\d{8}$/.test(celular)) return mostrarMsg('Si ingresas celular, debe tener 9 dígitos y empezar con 9.');
+  const dniLimpio = dni.replace(/\s/g, '');
+  if (dni && !/^\d+$/.test(dniLimpio)) return mostrarMsg('El DNI solo debe contener números.');
   if (dni && datos.find(d => d.dni === dni)) return mostrarMsg('Ya existe un registro con ese DNI.');
 
   const comentarios = seguimiento
@@ -545,6 +720,7 @@ function agregar() {
   guardarDatos();
   renderTabla();
   actualizarStats();
+  actualizarAlertBadge();
   limpiar();
   mostrarMsg('Registro agregado y guardado.', 'success');
 }
@@ -568,6 +744,7 @@ function eliminar(id) {
   guardarDatos();
   renderTabla();
   actualizarStats();
+  actualizarAlertBadge();
   cerrarBurbuja();
 }
 
@@ -578,6 +755,7 @@ function limpiarTodo() {
   guardarDatos();
   renderTabla();
   actualizarStats();
+  actualizarAlertBadge();
   cerrarBurbuja();
 }
 
@@ -591,39 +769,98 @@ function badgeClass(e) {
 /* ═══════════════════════════════════
    RENDERIZAR TABLA
    ═══════════════════════════════════ */
+function toggleColor(id) {
+  const d = datos.find(d => d.id === id);
+  if (!d) return;
+  const ciclo = { ninguno: 'verde', verde: 'rojo', rojo: 'ninguno' };
+  d.colorEstado = ciclo[d.colorEstado || 'ninguno'];
+  guardarDatos();
+  renderTabla();
+  actualizarAlertBadge();
+}
+
+function recDotHTML(d) {
+  const color = d.colorEstado || 'ninguno';
+  if (color === 'verde')
+    return `<span class="rec-dot rec-ok" title="Clic para cambiar a rojo" style="cursor:pointer" onclick="toggleColor(${d.id})"></span>`;
+  if (color === 'rojo')
+    return `<span class="rec-dot rec-vencido" title="Clic para cambiar a verde" style="cursor:pointer" onclick="toggleColor(${d.id})"></span>`;
+  return `<span class="rec-dot rec-none" title="Clic para activar" style="cursor:pointer" onclick="toggleColor(${d.id})"></span>`;
+}
+
+function formatFechaSep(f) {
+  if (!f || f === '—') return 'Sin fecha';
+  try {
+    const [y, m, d] = f.split('-');
+    const dt = new Date(+y, +m - 1, +d);
+    const hoyDt = new Date(); hoyDt.setHours(0,0,0,0);
+    const ayerDt = new Date(hoyDt); ayerDt.setDate(hoyDt.getDate() - 1);
+    if (dt.getTime() === hoyDt.getTime()) return `Hoy — ${f}`;
+    if (dt.getTime() === ayerDt.getTime()) return `Ayer — ${f}`;
+    return dt.toLocaleDateString('es-PE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  } catch { return f; }
+}
+
 function renderTabla() {
   const q  = document.getElementById('buscador').value.toLowerCase();
   const fe = document.getElementById('filtro-estado').value;
   let f = datos;
   if (q)  f = f.filter(d =>
-    d.dni.includes(q) || d.nombre.toLowerCase().includes(q) || d.celular.includes(q));
+    d.dni.replace(/\s/g,'').includes(q.replace(/\s/g,'')) || d.nombre.toLowerCase().includes(q) || d.celular.replace(/\s/g,'').includes(q.replace(/\s/g,'')));
   if (fe) f = f.filter(d => d.estado === fe);
 
   const body = document.getElementById('tabla-body');
   if (!f.length) {
-    body.innerHTML = `<tr><td colspan="8"><div class="empty">No hay registros. Agrega el primero.</div></td></tr>`;
+    body.innerHTML = `<tr><td colspan="9"><div class="empty">No hay registros. Agrega el primero.</div></td></tr>`;
     return;
   }
 
-  body.innerHTML = f.map((d, i) => {
-    const coments = d.comentarios || [];
-    const count   = coments.length;
-    const preview = count > 0 ? `💬 ${count} comentario${count > 1 ? 's' : ''}` : '+ Agregar';
-    const cls = count > 0 ? '' : 'empty-seg';
-    return `
-    <tr>
-      <td style="color:var(--text-ter)">${f.length - i}</td>
-      <td><strong>${d.dni}</strong></td>
-      <td>${d.nombre}</td>
-      <td>${d.celular}</td>
-      <td>${d.fecha}</td>
-      <td><span class="badge ${badgeClass(d.estado)}">${d.estado}</span></td>
-      <td class="seg-cell">
-        <span class="seg-trigger ${cls}" onclick="abrirBurbuja(event, ${d.id})">${preview}</span>
-      </td>
-      <td><button class="del-btn" onclick="eliminar(${d.id})">Eliminar</button></td>
-    </tr>`;
-  }).join('');
+  // Agrupar por fecha
+  const grupos = [];
+  const vistFechas = {};
+  f.forEach(d => {
+    const key = d.fecha || '—';
+    if (!vistFechas[key]) { vistFechas[key] = []; grupos.push(key); }
+    vistFechas[key].push(d);
+  });
+
+  let numGlobal = f.length;
+  let html = '';
+  grupos.forEach(fecha => {
+    const grupo = vistFechas[fecha];
+    const label = formatFechaSep(fecha);
+    const count = grupo.length;
+    html += `<tr class="fecha-separador"><td colspan="9"><div class="fecha-separador-inner">
+      <span class="fecha-separador-label">${label}</span>
+      <span class="fecha-separador-line"></span>
+      <span class="fecha-separador-count">${count} registro${count > 1 ? 's' : ''}</span>
+    </div></td></tr>`;
+    grupo.forEach(d => {
+      const coments = d.comentarios || [];
+      const count2  = coments.length;
+      const preview = count2 > 0 ? `💬 ${count2} comentario${count2 > 1 ? 's' : ''}` : '+ Agregar';
+      const cls     = count2 > 0 ? '' : 'empty-seg';
+      const filaClass = d.colorEstado === 'rojo' ? 'fila-vencida' : d.colorEstado === 'verde' ? 'fila-ok' : '';
+      html += `
+      <tr class="${filaClass}">
+        <td style="color:var(--text-ter)">${numGlobal--}</td>
+        <td><strong>${d.dni}</strong></td>
+        <td>${d.nombre}</td>
+        <td>${d.celular}</td>
+        <td>${d.fecha}</td>
+        <td><span class="badge ${badgeClass(d.estado)}">${d.estado}</span></td>
+        <td><div class="rec-cell">${recDotHTML(d)}</div></td>
+        <td class="seg-cell">
+          <span class="seg-trigger ${cls}" onclick="abrirBurbuja(event, ${d.id})">${preview}</span>
+        </td>
+        <td style="display:flex;gap:4px;align-items:center">
+          <button class="edit-btn" onclick="abrirModal(${d.id})">Editar</button>
+          <button class="del-btn" onclick="eliminar(${d.id})">Eliminar</button>
+        </td>
+      </tr>`;
+    });
+  });
+  body.innerHTML = html;
 }
 
 /* ═══════════════════════════════════
@@ -648,6 +885,12 @@ function abrirBurbuja(event, id) {
   document.getElementById('bubbleName').textContent = registro.nombre !== '—' ? registro.nombre : 'Sin nombre';
   document.getElementById('bubbleDni').textContent  = 'DNI: ' + (registro.dni || '—');
   document.getElementById('bubbleNewText').value    = '';
+
+  // Recordatorio
+  const recInput = document.getElementById('bubbleRecDate');
+  recInput.value = registro.recordatorio || '';
+  actualizarBubbleRecBadge(registro);
+
   renderBubbleComments(registro);
 
   const bubble  = document.getElementById('segBubble');
@@ -664,6 +907,85 @@ function abrirBurbuja(event, id) {
   overlay.classList.add('open');
   document.getElementById('bubbleNewText').focus();
 }
+
+function guardarRecordatorio() {
+  if (!activeBubbleId) return;
+  const registro = datos.find(d => d.id === activeBubbleId);
+  if (!registro) return;
+  const val = document.getElementById('bubbleRecDate').value;
+  registro.recordatorio = val || null;
+  guardarDatos();
+  actualizarBubbleRecBadge(registro);
+  renderTabla();
+  actualizarAlertBadge();
+}
+
+function actualizarBubbleRecBadge(registro) {
+  const badge = document.getElementById('bubbleRecBadge');
+  if (!registro.recordatorio) { badge.style.display = 'none'; return; }
+  const vencido = registro.recordatorio < hoy;
+  badge.style.display = 'inline';
+  badge.className = 'bubble-rec-badge ' + (vencido ? 'brb-vencido' : 'brb-ok');
+  badge.textContent = vencido ? '🔴 Vencido' : '🟢 Pendiente';
+}
+
+function actualizarAlertBadge() {
+  const rojos = datos.filter(d => d.colorEstado === 'rojo').length;
+  const badge = document.getElementById('alert-badge');
+  if (rojos > 0) { badge.style.display = 'inline-flex'; badge.textContent = rojos; }
+  else { badge.style.display = 'none'; }
+}
+
+function ultimoComentario(d) {
+  const c = d.comentarios;
+  if (!c || !c.length) return '';
+  const last = c[c.length - 1];
+  return `<div class="ai-comment">💬 ${last.texto}</div>`;
+}
+
+function alertItemHTML(d, dotClass, titulo, estiloExtra) {
+  return `
+    <div class="alert-item" ${estiloExtra}>
+      <span class="rec-dot ${dotClass}" style="cursor:pointer" title="${titulo}" onclick="toggleColor(${d.id});renderAlertas()"></span>
+      <div class="ai-info">
+        <div class="ai-name" style="${dotClass === 'rec-ok' ? 'color:var(--ok-text)' : dotClass === 'rec-none' ? 'color:var(--text-sec)' : ''}">${d.nombre !== '—' ? d.nombre : 'Sin nombre'} ${d.dni && d.dni !== '—' ? `<span style="font-weight:400;font-size:11px">(${d.dni})</span>` : ''}</div>
+        <div class="ai-meta">Estado: ${d.estado} · Celular: ${d.celular !== '—' ? d.celular : '—'}</div>
+        ${ultimoComentario(d)}
+      </div>
+    </div>`;
+}
+
+function renderAlertas() {
+  const rojos  = datos.filter(d => d.colorEstado === 'rojo');
+  const verdes = datos.filter(d => d.colorEstado === 'verde');
+  const grises = datos.filter(d => !d.colorEstado || d.colorEstado === 'ninguno');
+
+  const listV = document.getElementById('alertas-list');
+  listV.parentElement.querySelector('.card-title').textContent = 'Contactos en rojo';
+  listV.innerHTML = rojos.length
+    ? rojos.map(d => alertItemHTML(d, 'rec-vencido', 'Clic → verde', '')).join('')
+    : '<div class="empty">No hay contactos marcados en rojo.</div>';
+
+  const listP = document.getElementById('proximos-list');
+  listP.parentElement.querySelector('.card-title').textContent = 'Contactos en verde';
+  listP.innerHTML = verdes.length
+    ? verdes.map(d => alertItemHTML(d, 'rec-ok', 'Clic → rojo', 'style="border-color:var(--ok-border);background:var(--ok-bg)"')).join('')
+    : '<div class="empty">No hay contactos marcados en verde.</div>';
+
+  // Panel gris (si no existe, crearlo)
+  let listG = document.getElementById('grises-list');
+  if (!listG) {
+    const card = document.createElement('div');
+    card.className = 'card'; card.style.marginTop = '1rem';
+    card.innerHTML = '<div class="card-title">Contactos sin color</div><div class="alert-list" id="grises-list"></div>';
+    listP.parentElement.parentElement.appendChild(card);
+    listG = document.getElementById('grises-list');
+  }
+  listG.innerHTML = grises.length
+    ? grises.map(d => alertItemHTML(d, 'rec-none', 'Clic → verde', 'style="border-color:var(--border);background:var(--bg-sec)"')).join('')
+    : '<div class="empty">No hay contactos sin color.</div>';
+}
+
 
 function cerrarBurbuja() {
   document.getElementById('segBubble').classList.remove('open');
@@ -755,6 +1077,65 @@ function eliminarComentario(cid) {
 document.getElementById('bubbleNewText').addEventListener('keydown', function(e) {
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') agregarComentario();
 });
+
+/* ═══════════════════════════════════
+   MODAL EDICIÓN
+   ═══════════════════════════════════ */
+let editingId = null;
+
+function abrirModal(id) {
+  const d = datos.find(d => d.id === id);
+  if (!d) return;
+  editingId = id;
+  document.getElementById('e-dni').value    = d.dni !== '—' ? d.dni : '';
+  document.getElementById('e-nombre').value = d.nombre !== '—' ? d.nombre : '';
+  document.getElementById('e-celular').value= d.celular !== '—' ? d.celular : '';
+  document.getElementById('e-fecha').value  = d.fecha !== '—' ? d.fecha : '';
+  document.getElementById('e-estado').value = d.estado;
+  document.getElementById('msg-edit').className = 'msg';
+  document.getElementById('editModalOverlay').classList.add('open');
+}
+
+function cerrarModal(event) {
+  if (event && event.target !== document.getElementById('editModalOverlay')) return;
+  document.getElementById('editModalOverlay').classList.remove('open');
+  editingId = null;
+}
+
+function guardarEdicionRegistro() {
+  if (!editingId) return;
+  const d = datos.find(d => d.id === editingId);
+  if (!d) return;
+
+  const dni     = document.getElementById('e-dni').value.trim();
+  const nombre  = document.getElementById('e-nombre').value.trim();
+  const celular = document.getElementById('e-celular').value.trim();
+  const fecha   = document.getElementById('e-fecha').value;
+  const estado  = document.getElementById('e-estado').value;
+
+  const dniLimpio = dni.replace(/\s/g, '');
+  if (dni && !/^\d+$/.test(dniLimpio)) {
+    mostrarMsg('El DNI solo debe contener números.', 'error', 'msg-edit'); return;
+  }
+  const duplicado = datos.find(x => x.dni === dni && x.id !== editingId);
+  if (dni && duplicado) {
+    mostrarMsg('Ya existe otro registro con ese DNI.', 'error', 'msg-edit'); return;
+  }
+
+  d.dni     = dni     || '—';
+  d.nombre  = nombre  || '—';
+  d.celular = celular || '—';
+  d.fecha   = fecha   || '—';
+  d.estado  = estado;
+
+  guardarDatos();
+  renderTabla();
+  actualizarStats();
+  actualizarAlertBadge();
+  document.getElementById('editModalOverlay').classList.remove('open');
+  editingId = null;
+  mostrarMsg('Registro actualizado correctamente.', 'success');
+}
 
 /* ═══════════════════════════════════
    EXPORTAR EXCEL
@@ -926,6 +1307,7 @@ guardarDatos();
    ═══════════════════════════════════ */
 renderTabla();
 actualizarStats();
+actualizarAlertBadge();
 </script>
 </body>
 </html>
