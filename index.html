@@ -1,57 +1,922 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Registro de Contactos</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bg:        #ffffff;
+      --bg-sec:    #f5f5f4;
+      --bg-ter:    #f0efed;
+      --text:      #1a1a18;
+      --text-sec:  #6b6b67;
+      --text-ter:  #a0a09a;
+      --border:    rgba(0,0,0,0.12);
+      --border-md: rgba(0,0,0,0.22);
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --info-bg:   #e6f1fb; --info-text:  #185fa5; --info-border: #b5d4f4;
+      --ok-bg:     #eaf3de; --ok-text:    #3b6d11; --ok-border:   #c0dd97;
+      --warn-bg:   #faeeda; --warn-text:  #854f0b; --warn-border: #fac775;
+      --danger-bg: #fcebeb; --danger-text:#a32d2d; --danger-border:#f7c1c1;
+      --font: 'Segoe UI', system-ui, sans-serif;
+      --mono: 'Consolas', 'Menlo', monospace;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:        #1c1c1e;
+        --bg-sec:    #2c2c2e;
+        --bg-ter:    #3a3a3c;
+        --text:      #f2f2f7;
+        --text-sec:  #aeaeb2;
+        --text-ter:  #636366;
+        --border:    rgba(255,255,255,0.10);
+        --border-md: rgba(255,255,255,0.18);
+        --info-bg:   #0d2b45; --info-text:  #6ab0f5; --info-border: #1a4a70;
+        --ok-bg:     #0f2d10; --ok-text:    #7dc96a; --ok-border:   #1a4f1b;
+        --warn-bg:   #2d1e00; --warn-text:  #f0a840; --warn-border: #5a3a00;
+        --danger-bg: #2d0f0f; --danger-text:#f47c7c; --danger-border:#5a1a1a;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font); background: var(--bg-ter); color: var(--text); min-height: 100vh; }
+
+    /* ══ PANTALLA DE LOGIN ══ */
+    #login-screen {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      padding: 1rem; background: var(--bg-ter);
+    }
+    .login-box {
+      background: var(--bg); border: 1px solid var(--border-md);
+      border-radius: var(--radius-lg); padding: 2rem; width: 100%; max-width: 380px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+    }
+    .login-logo {
+      text-align: center; margin-bottom: 1.5rem;
+    }
+    .login-logo-icon {
+      width: 48px; height: 48px; background: var(--info-bg);
+      border: 1px solid var(--info-border); border-radius: 14px;
+      display: inline-flex; align-items: center; justify-content: center;
+      margin-bottom: 0.75rem;
+    }
+    .login-logo-icon svg { width: 24px; height: 24px; color: var(--info-text); }
+    .login-title { font-size: 18px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .login-sub { font-size: 13px; color: var(--text-sec); }
+    .login-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+    .login-field label { font-size: 12px; color: var(--text-sec); font-weight: 500; }
+    .login-field input {
+      font-size: 14px; padding: 9px 12px;
+      border-radius: var(--radius-md); border: 1px solid var(--border-md);
+      background: var(--bg-sec); color: var(--text); font-family: var(--font); outline: none;
+    }
+    .login-field input:focus { border-color: var(--info-text); box-shadow: 0 0 0 3px var(--info-bg); }
+    .login-btn {
+      width: 100%; padding: 10px; font-size: 14px; font-weight: 500;
+      background: var(--info-bg); color: var(--info-text); border: 1px solid var(--info-border);
+      border-radius: var(--radius-md); cursor: pointer; font-family: var(--font); margin-top: 4px;
+      transition: opacity .15s;
+    }
+    .login-btn:hover { opacity: 0.85; }
+    .login-err { font-size: 12px; color: var(--danger-text); background: var(--danger-bg);
+      border: 1px solid var(--danger-border); border-radius: var(--radius-md);
+      padding: 7px 12px; margin-top: 10px; display: none; }
+    .login-err.show { display: block; }
+
+    /* ══ APP ══ */
+    #app-screen { display: none; padding: 2rem 1rem; }
+    .wrapper { max-width: 980px; margin: 0 auto; }
+
+    /* Topbar */
+    .topbar {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 1.5rem; flex-wrap: wrap;
+    }
+    .topbar h1 { font-size: 20px; font-weight: 600; flex: 1; }
+    .topbar h1 span { font-weight: 400; color: var(--text-sec); font-size: 14px; margin-left: 8px; }
+    .user-pill {
+      display: inline-flex; align-items: center; gap: 6px; font-size: 12px;
+      background: var(--bg-sec); border: 1px solid var(--border-md);
+      border-radius: 999px; padding: 4px 12px; color: var(--text-sec);
+    }
+    .user-pill strong { color: var(--text); }
+    .user-pill .role-badge {
+      font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px;
+      background: var(--info-bg); color: var(--info-text); border: 1px solid var(--info-border);
+    }
+    .user-pill .role-badge.admin { background: var(--warn-bg); color: var(--warn-text); border-color: var(--warn-border); }
+    .save-indicator {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; color: var(--ok-text);
+    }
+    .save-indicator .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok-text); }
+    .logout-btn {
+      font-size: 12px; padding: 5px 12px; border-radius: var(--radius-md); cursor: pointer;
+      border: 1px solid var(--border-md); background: transparent; color: var(--text-sec);
+      font-family: var(--font); transition: opacity .15s;
+    }
+    .logout-btn:hover { opacity: 0.7; }
+
+    /* Tabs */
+    .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 1.5rem; flex-wrap: wrap; }
+    .tab {
+      font-size: 13px; font-weight: 500; padding: 8px 18px; cursor: pointer;
+      border: 1px solid transparent; border-bottom: none;
+      border-radius: var(--radius-md) var(--radius-md) 0 0;
+      background: transparent; color: var(--text-sec); font-family: var(--font);
+    }
+    .tab.active { background: var(--bg); border-color: var(--border); color: var(--text); margin-bottom: -1px; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* Cards */
+    .card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1rem; }
+    .card-title { font-size: 11px; font-weight: 600; color: var(--text-sec); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 1rem; }
+
+    /* Formulario */
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field label { font-size: 12px; color: var(--text-sec); }
+    .field label .opt { color: var(--text-ter); font-style: italic; font-weight: 400; }
+    .field input, .field select, .field textarea {
+      font-size: 14px; padding: 8px 10px;
+      border-radius: var(--radius-md); border: 1px solid var(--border-md);
+      background: var(--bg-sec); color: var(--text);
+      font-family: var(--font); outline: none; width: 100%;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      border-color: var(--info-text); box-shadow: 0 0 0 3px var(--info-bg);
+    }
+    .field textarea { resize: vertical; min-height: 68px; }
+    .span2 { grid-column: span 2; }
+    .form-note { font-size: 11px; color: var(--text-ter); margin-top: 6px; }
+
+    /* Botones */
+    .btn-row { display: flex; gap: 8px; margin-top: 1rem; flex-wrap: wrap; }
+    button {
+      font-size: 13px; font-weight: 500; padding: 8px 16px;
+      border-radius: var(--radius-md); cursor: pointer;
+      border: 1px solid var(--border-md); background: transparent;
+      color: var(--text); font-family: var(--font); transition: opacity .15s;
+    }
+    button:hover { opacity: 0.8; }
+    button:active { transform: scale(0.98); }
+    button.primary { background: var(--info-bg);  color: var(--info-text);  border-color: var(--info-border); }
+    button.success { background: var(--ok-bg);    color: var(--ok-text);    border-color: var(--ok-border); }
+    button.danger  { background: var(--danger-bg);color: var(--danger-text);border-color: var(--danger-border); }
+    button.warn    { background: var(--warn-bg);   color: var(--warn-text);  border-color: var(--warn-border); }
+
+    /* Mensaje feedback */
+    .msg { margin-top: 10px; font-size: 13px; padding: 7px 12px; border-radius: var(--radius-md); display: none; }
+    .msg.error   { background: var(--danger-bg); color: var(--danger-text); border: 1px solid var(--danger-border); display: block; }
+    .msg.success { background: var(--ok-bg);     color: var(--ok-text);     border: 1px solid var(--ok-border); display: block; }
+    .msg.warn    { background: var(--warn-bg);   color: var(--warn-text);   border: 1px solid var(--warn-border); display: block; }
+
+    /* Stats */
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1rem; }
+    .stat { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 0.8rem 1rem; }
+    .stat-label { font-size: 11px; color: var(--text-sec); margin-bottom: 4px; }
+    .stat-val   { font-size: 22px; font-weight: 600; }
+
+    /* Buscador */
+    .search-row { display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; }
+    .search-row input, .search-row select {
+      font-size: 13px; padding: 7px 10px; border-radius: var(--radius-md);
+      border: 1px solid var(--border-md); background: var(--bg-sec);
+      color: var(--text); font-family: var(--font); outline: none;
+    }
+    .search-row input { flex: 1; min-width: 160px; }
+
+    /* Tabla */
+    .tbl-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th {
+      text-align: left; font-size: 11px; font-weight: 600; color: var(--text-sec);
+      padding: 7px 8px; border-bottom: 1px solid var(--border); white-space: nowrap;
+    }
+    tbody td { padding: 9px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: var(--bg-sec); }
+
+    /* Badges */
+    .badge { display: inline-block; font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 999px; }
+    .b-pend { background: var(--warn-bg);   color: var(--warn-text); }
+    .b-cont { background: var(--info-bg);   color: var(--info-text); }
+    .b-cerr { background: var(--ok-bg);     color: var(--ok-text); }
+
+    .del-btn { font-size: 11px; padding: 3px 8px; color: var(--danger-text); border-color: var(--danger-border); background: transparent; }
+    .edit-btn { font-size: 11px; padding: 3px 8px; color: var(--info-text); border-color: var(--info-border); background: var(--info-bg); }
+
+    .empty { text-align: center; color: var(--text-ter); padding: 2.5rem; font-size: 13px; }
+
+    /* Excel preview */
+    .xl-preview table { font-family: var(--mono); font-size: 12px; }
+    .xl-preview thead th { background: var(--bg-sec); font-family: var(--font); }
+    .xl-preview td { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* Burbuja seguimiento */
+    .seg-cell { position: relative; cursor: pointer; }
+    .seg-trigger {
+      display: inline-flex; align-items: center; gap: 5px; font-size: 12px;
+      color: var(--info-text); background: var(--info-bg); border: 1px solid var(--info-border);
+      border-radius: 999px; padding: 2px 10px; cursor: pointer; transition: background .15s;
+      white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis;
+    }
+    .seg-trigger:hover { background: var(--info-border); }
+    .seg-trigger.empty-seg { color: var(--text-ter); background: var(--bg-sec); border-color: var(--border); }
+    .seg-trigger.empty-seg:hover { background: var(--bg-ter); }
+
+    .seg-bubble {
+      display: none; position: fixed; z-index: 1000; background: var(--bg);
+      border: 1px solid var(--border-md); border-radius: var(--radius-lg);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18); width: 340px; max-height: 420px;
+      overflow: hidden; flex-direction: column;
+    }
+    .seg-bubble.open { display: flex; animation: bubbleIn .18s ease; }
+    @keyframes bubbleIn { from { opacity:0; transform:scale(0.95) translateY(-4px); } to { opacity:1; transform:scale(1) translateY(0); } }
+    .bubble-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px; border-bottom: 1px solid var(--border);
+      font-size: 12px; font-weight: 600; color: var(--text-sec);
+    }
+    .bubble-header .bubble-name { font-size: 13px; font-weight: 600; color: var(--text); }
+    .bubble-close { background: none; border: none; cursor: pointer; color: var(--text-ter); font-size: 16px; padding: 0 2px; line-height: 1; }
+    .bubble-close:hover { color: var(--text); }
+    .bubble-search-row { padding: 6px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 6px; }
+    .bubble-search-row input {
+      flex: 1; font-size: 12px; font-family: var(--font); border: 1px solid var(--border-md);
+      border-radius: var(--radius-md); padding: 4px 8px; background: var(--bg-sec); color: var(--text); outline: none;
+    }
+    .bubble-search-row input:focus { border-color: var(--info-text); box-shadow: 0 0 0 2px var(--info-bg); }
+    .bubble-search-count { font-size: 11px; color: var(--text-ter); white-space: nowrap; }
+    .bubble-comments { flex: 1; overflow-y: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 0; }
+    .bubble-comments:empty::after { content: 'Sin comentarios aún.'; color: var(--text-ter); font-size: 12px; text-align: center; padding: 1rem 0; }
+
+    /* Timeline */
+    .comment-timeline-item { display: flex; gap: 10px; position: relative; }
+    .comment-timeline-item:not(:last-child)::before { content: ''; position: absolute; left: 15px; top: 28px; bottom: -4px; width: 1px; background: var(--border); }
+    .comment-dot { flex-shrink: 0; width: 10px; height: 10px; border-radius: 50%; background: var(--info-text); border: 2px solid var(--info-bg); margin-top: 9px; z-index: 1; }
+    .comment-body { flex: 1; padding-bottom: 12px; }
+    .comment-item { background: var(--bg-sec); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 8px 10px; font-size: 12px; }
+    .comment-item.highlight { background: var(--warn-bg); border-color: var(--warn-border); }
+    .comment-meta { font-size: 10px; color: var(--text-ter); margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .comment-num { font-weight: 700; color: var(--text-sec); }
+    .comment-time-rel { background: var(--bg-ter); border-radius: 4px; padding: 1px 5px; font-size: 10px; color: var(--text-sec); }
+    .comment-text { color: var(--text); line-height: 1.55; word-break: break-word; }
+    .comment-text.collapsed { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .comment-expand-btn { font-size: 10px; color: var(--info-text); background: none; border: none; cursor: pointer; padding: 2px 0; margin-top: 3px; display: block; }
+    .comment-edit-input { width: 100%; font-size: 12px; font-family: var(--font); border: 1px solid var(--info-border); border-radius: 5px; padding: 5px 7px; background: var(--bg); color: var(--text); outline: none; resize: vertical; min-height: 50px; }
+    .comment-actions { display: flex; gap: 5px; margin-top: 5px; }
+    .comment-actions button { font-size: 10px; padding: 2px 8px; }
+    .no-results-bubble { font-size: 12px; color: var(--text-ter); text-align: center; padding: 1.5rem 0; }
+    .bubble-input-area { padding: 10px 14px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+    .bubble-input-area textarea { font-size: 12px; font-family: var(--font); border: 1px solid var(--border-md); border-radius: var(--radius-md); padding: 7px 9px; background: var(--bg-sec); color: var(--text); outline: none; resize: none; height: 56px; width: 100%; }
+    .bubble-input-area textarea:focus { border-color: var(--info-text); box-shadow: 0 0 0 2px var(--info-bg); }
+    .bubble-add-btn { align-self: flex-end; font-size: 12px; padding: 5px 14px; }
+    .bubble-overlay { display: none; position: fixed; inset: 0; z-index: 999; }
+    .bubble-overlay.open { display: block; }
+
+    /* Separador fecha */
+    .fecha-separador td { padding: 14px 8px 6px; border-bottom: none; background: transparent !important; }
+    .fecha-separador-inner { display: flex; align-items: center; gap: 10px; }
+    .fecha-separador-label { font-size: 11px; font-weight: 700; color: var(--text-sec); text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap; }
+    .fecha-separador-line { flex: 1; height: 1px; background: var(--border); }
+    .fecha-separador-count { font-size: 10px; color: var(--text-ter); white-space: nowrap; }
+
+    /* Recordatorio dots */
+    .rec-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .rec-vencido  { background: #e53e3e; box-shadow: 0 0 0 3px var(--danger-bg); }
+    .rec-ok       { background: #38a169; box-shadow: 0 0 0 3px var(--ok-bg); }
+    .rec-amarillo { background: #d97706; box-shadow: 0 0 0 3px var(--warn-bg); }
+    .rec-none     { background: #d1d1ce; }
+    .rec-cell { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-sec); }
+
+    /* Alertas */
+    .alert-count { display: inline-flex; align-items: center; justify-content: center; background: #e53e3e; color: #fff; border-radius: 999px; font-size: 10px; font-weight: 700; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px; vertical-align: middle; }
+    .alert-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: var(--radius-md); border: 1px solid var(--danger-border); background: var(--danger-bg); font-size: 13px; }
+    .alert-item .ai-info { flex: 1; }
+    .alert-item .ai-name { font-weight: 600; color: var(--danger-text); }
+    .alert-item .ai-meta { font-size: 11px; color: var(--text-sec); margin-top: 2px; }
+    .alert-item .ai-comment { font-size: 11px; color: var(--text-sec); margin-top: 4px; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 340px; }
+    .alert-list { display: flex; flex-direction: column; gap: 8px; }
+    tbody tr.fila-vencida  td { background: var(--danger-bg) !important; }
+    tbody tr.fila-ok       td { background: var(--ok-bg) !important; }
+    tbody tr.fila-amarilla td { background: var(--warn-bg) !important; }
+
+    /* Recordatorio en burbuja */
+    .bubble-rec-row { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text-sec); }
+    .bubble-rec-row label { white-space: nowrap; }
+    .bubble-rec-row input[type=date] { font-size: 12px; padding: 4px 8px; border: 1px solid var(--border-md); border-radius: var(--radius-md); background: var(--bg-sec); color: var(--text); font-family: var(--font); outline: none; flex: 1; }
+    .bubble-rec-row input[type=date]:focus { border-color: var(--info-text); box-shadow: 0 0 0 2px var(--info-bg); }
+    .bubble-rec-badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+    .brb-vencido { background: var(--danger-bg); color: var(--danger-text); }
+    .brb-ok      { background: var(--ok-bg);     color: var(--ok-text); }
+
+    /* Modal edición */
+    .modal-overlay { display: none; position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,0.4); backdrop-filter: blur(2px); align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal-box { background: var(--bg); border: 1px solid var(--border-md); border-radius: var(--radius-lg); width: 100%; max-width: 500px; box-shadow: 0 16px 48px rgba(0,0,0,0.2); overflow: hidden; animation: bubbleIn .18s ease; }
+    .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); font-size: 14px; font-weight: 600; }
+    .modal-body { padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+    .modal-footer { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 18px; border-top: 1px solid var(--border); background: var(--bg-sec); }
+
+    /* Backup */
+    .backup-info { font-size: 12px; color: var(--text-sec); line-height: 1.6; background: var(--info-bg); border: 1px solid var(--info-border); border-radius: var(--radius-md); padding: 10px 14px; margin-bottom: 1rem; }
+    .backup-info strong { color: var(--info-text); }
+    #import-file { display: none; }
+
+    /* ══ PANEL USUARIOS (ADMIN) ══ */
+    .user-list { display: flex; flex-direction: column; gap: 8px; }
+    .user-item {
+      display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+      background: var(--bg-sec); border: 1px solid var(--border);
+      border-radius: var(--radius-md); font-size: 13px;
+    }
+    .user-item-avatar {
+      width: 32px; height: 32px; border-radius: 50%; background: var(--info-bg);
+      border: 1px solid var(--info-border); display: flex; align-items: center;
+      justify-content: center; font-size: 13px; font-weight: 600; color: var(--info-text);
+      flex-shrink: 0;
+    }
+    .user-item-avatar.admin-av { background: var(--warn-bg); color: var(--warn-text); border-color: var(--warn-border); }
+    .user-item-info { flex: 1; }
+    .user-item-name { font-weight: 600; color: var(--text); }
+    .user-item-meta { font-size: 11px; color: var(--text-ter); margin-top: 2px; }
+    .new-user-form { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 8px; align-items: end; }
+    .new-user-form input, .new-user-form select {
+      font-size: 13px; padding: 8px 10px; border-radius: var(--radius-md);
+      border: 1px solid var(--border-md); background: var(--bg-sec); color: var(--text);
+      font-family: var(--font); outline: none;
+    }
+    .new-user-form input:focus, .new-user-form select:focus { border-color: var(--info-text); box-shadow: 0 0 0 3px var(--info-bg); }
+
+    /* Change password */
+    .change-pwd-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .change-pwd-row input { font-size: 13px; padding: 7px 10px; border-radius: var(--radius-md); border: 1px solid var(--border-md); background: var(--bg-sec); color: var(--text); font-family: var(--font); outline: none; flex: 1; min-width: 140px; }
+    .change-pwd-row input:focus { border-color: var(--info-text); box-shadow: 0 0 0 3px var(--info-bg); }
+
+    @media (max-width: 600px) {
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .span2 { grid-column: span 1; }
+      .seg-bubble { width: 95vw; }
+      .new-user-form { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════
+     PANTALLA DE LOGIN
+══════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="login-logo-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+      </div>
+      <div class="login-title">Registro de Contactos</div>
+      <div class="login-sub">Inicia sesión para continuar</div>
+    </div>
+    <div class="login-field">
+      <label for="l-user">Usuario</label>
+      <input type="text" id="l-user" placeholder="Tu nombre de usuario" autocomplete="username">
+    </div>
+    <div class="login-field">
+      <label for="l-pass">Contraseña</label>
+      <input type="password" id="l-pass" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="login-btn" onclick="intentarLogin()">Ingresar</button>
+    <div class="login-err" id="login-err">Usuario o contraseña incorrectos.</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     APP PRINCIPAL
+══════════════════════════════════ -->
+<div id="app-screen">
+<div class="wrapper">
+
+  <div class="topbar">
+    <h1>Registro de Contactos <span>Sistema de seguimiento</span></h1>
+    <span id="saveIndicator" class="save-indicator" style="display:none"><span class="dot"></span> Guardado</span>
+    <div class="user-pill">
+      <span id="ui-username-badge">—</span>
+      <span class="role-badge" id="ui-role-badge">—</span>
+    </div>
+    <button class="logout-btn" onclick="cerrarSesion()">Cerrar sesión</button>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs" id="main-tabs">
+    <button class="tab active" onclick="switchTab('registro')">Registro</button>
+    <button class="tab" onclick="switchTab('alertas')" id="tab-btn-alertas">Alertas<span id="alert-badge" class="alert-count" style="display:none">0</span></button>
+    <button class="tab" onclick="switchTab('excel')">Excel virtual</button>
+    <button class="tab" onclick="switchTab('backup')">Copia de seguridad</button>
+    <button class="tab" onclick="switchTab('usuarios')" id="tab-btn-usuarios" style="display:none">Usuarios</button>
+  </div>
+
+  <!-- ══ TAB: REGISTRO ══ -->
+  <div id="tab-registro" class="panel active">
+    <div class="card">
+      <div class="card-title">Nuevo registro</div>
+      <div class="form-grid">
+        <div class="field">
+          <label>DNI <span class="opt">(opcional)</span></label>
+          <input id="f-dni" placeholder="12345678" maxlength="20">
+        </div>
+        <div class="field">
+          <label>Nombre completo <span class="opt">(opcional)</span></label>
+          <input id="f-nombre" placeholder="Nombre y apellido">
+        </div>
+        <div class="field">
+          <label>Celular <span class="opt">(opcional)</span></label>
+          <input id="f-celular" placeholder="999 999 999" maxlength="20">
+        </div>
+        <div class="field">
+          <label>Fecha de contacto <span class="opt">(opcional)</span></label>
+          <input type="date" id="f-fecha">
+        </div>
+        <div class="field">
+          <label>Estado</label>
+          <select id="f-estado">
+            <option>Pendiente</option>
+            <option>Contactado</option>
+            <option>Cerrado</option>
+          </select>
+        </div>
+        <div class="field span2">
+          <label>Primer comentario de seguimiento <span class="opt">(opcional)</span></label>
+          <textarea id="f-seguimiento" placeholder="Observaciones del contacto..."></textarea>
+        </div>
+      </div>
+      <div class="form-note">Todos los campos son opcionales.</div>
+      <div class="btn-row">
+        <button class="primary" onclick="agregar()">+ Agregar registro</button>
+        <button onclick="limpiar()">Limpiar</button>
+      </div>
+      <div id="msg" class="msg"></div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="stat-label">Total</div><div class="stat-val" id="st-total">0</div></div>
+      <div class="stat"><div class="stat-label">Pendientes</div><div class="stat-val" id="st-pend">0</div></div>
+      <div class="stat"><div class="stat-label">Contactados</div><div class="stat-val" id="st-cont">0</div></div>
+      <div class="stat"><div class="stat-label">Cerrados</div><div class="stat-val" id="st-cerr">0</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Registros guardados</div>
+      <div class="search-row">
+        <input id="buscador" placeholder="Buscar por DNI, nombre, celular o comentarios..." oninput="renderTabla()">
+        <select id="filtro-estado" onchange="renderTabla()">
+          <option value="">Todos los estados</option>
+          <option>Pendiente</option>
+          <option>Contactado</option>
+          <option>Cerrado</option>
+        </select>
+        <button class="success" onclick="exportarExcel()">⬇ .xlsx</button>
+        <button onclick="limpiarTodo()" class="danger">Borrar todo</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th>DNI</th><th>Nombre</th><th>Celular</th>
+              <th>Fecha</th><th>Estado</th><th>Color</th><th>Seguimiento</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="tabla-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: ALERTAS ══ -->
+  <div id="tab-alertas" class="panel">
+    <div class="card">
+      <div class="card-title">Contactos en rojo</div>
+      <div class="alert-list" id="alertas-list"><div class="empty">No hay contactos marcados en rojo.</div></div>
+    </div>
+    <div class="card" style="margin-top:1rem">
+      <div class="card-title">Contactos en amarillo</div>
+      <div class="alert-list" id="amarillos-list"><div class="empty">No hay contactos en amarillo.</div></div>
+    </div>
+    <div class="card" style="margin-top:1rem">
+      <div class="card-title">Contactos en verde</div>
+      <div class="alert-list" id="proximos-list"><div class="empty">No hay contactos en verde.</div></div>
+    </div>
+    <div class="card" style="margin-top:1rem">
+      <div class="card-title">Sin color</div>
+      <div class="alert-list" id="grises-list"><div class="empty">No hay contactos sin color.</div></div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: EXCEL ══ -->
+  <div id="tab-excel" class="panel">
+    <div class="card">
+      <div class="card-title">Vista previa — Excel virtual</div>
+      <p style="font-size:13px;color:var(--text-sec);margin-bottom:1rem;">Así se verán tus datos en el archivo <strong>.xlsx</strong>.</p>
+      <div class="tbl-wrap xl-preview" id="xl-preview"></div>
+      <div class="btn-row" style="margin-top:1rem">
+        <button class="success" onclick="exportarExcel()">⬇ Descargar .xlsx</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: BACKUP ══ -->
+  <div id="tab-backup" class="panel">
+    <div class="card">
+      <div class="card-title">Copia de seguridad</div>
+      <div class="backup-info">
+        <strong>¿Por qué hacer una copia?</strong><br>
+        Tus datos se guardan en este navegador. Si limpias el caché o usas otro dispositivo, los datos podrían perderse.
+        Descarga copias periódicamente.
+      </div>
+      <div class="card-title" style="margin-top:0.5rem">Exportar</div>
+      <div class="btn-row">
+        <button class="success" onclick="exportarBackupJSON()">⬇ Guardar copia (.json)</button>
+        <button class="success" onclick="exportarExcel()">⬇ Exportar a Excel (.xlsx)</button>
+      </div>
+      <p style="font-size:11px;color:var(--text-ter);margin-top:8px">
+        El <strong>.json</strong> guarda todo y se puede restaurar aquí. El <strong>.xlsx</strong> es solo lectura.
+      </p>
+    </div>
+    <div class="card">
+      <div class="card-title">Restaurar copia</div>
+      <div class="btn-row">
+        <button class="warn" onclick="document.getElementById('import-file').click()">📂 Seleccionar archivo .json</button>
+        <input type="file" id="import-file" accept=".json" onchange="importarBackup(event)">
+      </div>
+      <div id="msg-backup" class="msg"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Estado del almacenamiento</div>
+      <div id="storage-info" style="font-size:13px;color:var(--text-sec);line-height:2"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Cambiar mi contraseña</div>
+      <div class="change-pwd-row">
+        <input type="password" id="pwd-actual" placeholder="Contraseña actual">
+        <input type="password" id="pwd-nueva" placeholder="Nueva contraseña">
+        <input type="password" id="pwd-confirm" placeholder="Confirmar nueva contraseña">
+        <button class="primary" onclick="cambiarPassword()">Cambiar</button>
+      </div>
+      <div id="msg-pwd" class="msg"></div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: USUARIOS (solo admin) ══ -->
+  <div id="tab-usuarios" class="panel">
+    <div class="card">
+      <div class="card-title">Usuarios registrados</div>
+      <div class="user-list" id="user-list"></div>
+    </div>
+    <div class="card" style="margin-top:1rem">
+      <div class="card-title">Agregar nuevo usuario</div>
+      <div class="new-user-form">
+        <div class="field">
+          <label>Nombre de usuario</label>
+          <input id="nu-user" placeholder="Ej: juan123" autocomplete="off">
+        </div>
+        <div class="field">
+          <label>Contraseña inicial</label>
+          <input type="password" id="nu-pass" placeholder="Mín. 4 caracteres" autocomplete="new-password">
+        </div>
+        <div class="field">
+          <label>Rol</label>
+          <select id="nu-rol">
+            <option value="usuario">Usuario</option>
+            <option value="admin">Administrador</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>&nbsp;</label>
+          <button class="primary" onclick="crearUsuario()">+ Crear usuario</button>
+        </div>
+      </div>
+      <div id="msg-users" class="msg"></div>
+    </div>
+    <div class="card" style="margin-top:1rem">
+      <div class="card-title">Estadísticas globales (todos los usuarios)</div>
+      <div id="global-stats" style="font-size:13px;color:var(--text-sec);line-height:2"></div>
+    </div>
+  </div>
+
+</div><!-- /wrapper -->
+</div><!-- /app-screen -->
+
+<!-- ══ MODAL EDICIÓN ══ -->
+<div class="modal-overlay" id="editModalOverlay" onclick="cerrarModal(event)">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-header">✏️ Editar registro <button class="bubble-close" onclick="cerrarModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field"><label>DNI <span class="opt">(opcional)</span></label><input id="e-dni" placeholder="12345678" maxlength="20"></div>
+        <div class="field"><label>Nombre completo <span class="opt">(opcional)</span></label><input id="e-nombre" placeholder="Nombre y apellido"></div>
+        <div class="field"><label>Celular <span class="opt">(opcional)</span></label><input id="e-celular" placeholder="999 999 999" maxlength="20"></div>
+        <div class="field"><label>Fecha de contacto</label><input type="date" id="e-fecha"></div>
+        <div class="field"><label>Estado</label>
+          <select id="e-estado"><option>Pendiente</option><option>Contactado</option><option>Cerrado</option></select>
+        </div>
+      </div>
+      <div id="msg-edit" class="msg"></div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="cerrarModal()">Cancelar</button>
+      <button class="primary" onclick="guardarEdicionRegistro()">💾 Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ BURBUJA SEGUIMIENTO ══ -->
+<div class="bubble-overlay" id="bubbleOverlay" onclick="cerrarBurbuja()"></div>
+<div class="seg-bubble" id="segBubble">
+  <div class="bubble-header">
+    <div>
+      <div class="bubble-name" id="bubbleName">—</div>
+      <div style="font-size:11px;color:var(--text-ter)" id="bubbleDni">—</div>
+    </div>
+    <button class="bubble-close" onclick="cerrarBurbuja()">✕</button>
+  </div>
+  <div class="bubble-rec-row">
+    <label>📅 Recordatorio:</label>
+    <input type="date" id="bubbleRecDate" onchange="guardarRecordatorio()">
+    <span id="bubbleRecBadge" class="bubble-rec-badge" style="display:none"></span>
+  </div>
+  <div class="bubble-search-row" id="bubbleSearchRow" style="display:none">
+    <input type="text" id="bubbleSearchInput" placeholder="Buscar en comentarios..." oninput="filtrarComentarios()">
+    <span class="bubble-search-count" id="bubbleSearchCount"></span>
+  </div>
+  <div class="bubble-comments" id="bubbleComments"></div>
+  <div class="bubble-input-area">
+    <textarea id="bubbleNewText" placeholder="Agregar comentario de seguimiento..."></textarea>
+    <button class="primary bubble-add-btn" onclick="agregarComentario()">+ Agregar</button>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════
+   SISTEMA DE USUARIOS Y AUTENTICACIÓN
+   Usuarios guardados en localStorage separado.
+   Contraseñas hasheadas con SHA-256 (Web Crypto).
+═══════════════════════════════════════════════ */
+const USERS_KEY    = 'crm_users_v1';
+const SESSION_KEY  = 'crm_session_v1';
+
+let sesionActual = null; // { username, rol }
+
+/* Hash SHA-256 */
+async function sha256(text) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+function cargarUsuarios() {
+  try { return JSON.parse(localStorage.getItem(USERS_KEY)) || []; } catch { return []; }
+}
+function guardarUsuarios(users) {
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+}
+
+/* Inicializar admin por defecto si no hay usuarios */
+async function initUsuarios() {
+  let users = cargarUsuarios();
+  if (!users.length) {
+    const hash = await sha256('admin123');
+    users = [{ username: 'admin', passHash: hash, rol: 'admin', creadoEn: new Date().toISOString() }];
+    guardarUsuarios(users);
+  }
+  return users;
+}
+
+/* Clave de datos por usuario */
+function storageKeyForUser(username) {
+  return 'crm_datos_' + username;
+}
+
+/* Login */
+async function intentarLogin() {
+  const user = document.getElementById('l-user').value.trim().toLowerCase();
+  const pass = document.getElementById('l-pass').value;
+  if (!user || !pass) {
+    document.getElementById('login-err').textContent = 'Completa usuario y contraseña.';
+    document.getElementById('login-err').classList.add('show'); return;
+  }
+  const hash = await sha256(pass);
+  const users = cargarUsuarios();
+  const found = users.find(u => u.username === user && u.passHash === hash);
+  if (!found) {
+    document.getElementById('login-err').textContent = 'Usuario o contraseña incorrectos.';
+    document.getElementById('login-err').classList.add('show');
+    document.getElementById('l-pass').value = '';
+    return;
+  }
+  document.getElementById('login-err').classList.remove('show');
+  sesionActual = { username: found.username, rol: found.rol };
+  localStorage.setItem(SESSION_KEY, JSON.stringify(sesionActual));
+  iniciarApp();
+}
+
+function cerrarSesion() {
+  sesionActual = null;
+  localStorage.removeItem(SESSION_KEY);
+  datos = [];
+  document.getElementById('app-screen').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('l-user').value = '';
+  document.getElementById('l-pass').value = '';
+}
+
+function iniciarApp() {
+  /* UI: nombre y rol */
+  document.getElementById('ui-username-badge').textContent = sesionActual.username;
+  const rolBadge = document.getElementById('ui-role-badge');
+  rolBadge.textContent = sesionActual.rol === 'admin' ? 'Admin' : 'Usuario';
+  if (sesionActual.rol === 'admin') rolBadge.classList.add('admin');
+  else rolBadge.classList.remove('admin');
+
+  /* Mostrar pestaña usuarios solo para admin */
+  document.getElementById('tab-btn-usuarios').style.display = sesionActual.rol === 'admin' ? 'inline-block' : 'none';
+
+  /* Cargar datos del usuario actual */
+  STORAGE_KEY = storageKeyForUser(sesionActual.username);
+  datos = cargarDatos();
+
+  /* Migración */
+  datos.forEach(d => {
+    if (!d.comentarios) {
+      d.comentarios = d.seguimiento
+        ? [{ id: Date.now() + Math.random(), texto: d.seguimiento, fecha: d.fecha || 'Importado' }]
+        : [];
+      delete d.seguimiento;
+    }
+  });
+  guardarDatos();
+
+  const hoyVal = new Date().toISOString().split('T')[0];
+  document.getElementById('f-fecha').value = hoyVal;
+
+  switchTab('registro');
+  renderTabla();
+  actualizarStats();
+  actualizarAlertBadge();
+
+  document.getElementById('login-screen').style.display  = 'none';
+  document.getElementById('app-screen').style.display    = 'block';
+}
+
+/* Reanudar sesión guardada */
+async function arrancar() {
+  await initUsuarios();
+  const saved = localStorage.getItem(SESSION_KEY);
+  if (saved) {
+    try {
+      const s = JSON.parse(saved);
+      const users = cargarUsuarios();
+      if (users.find(u => u.username === s.username && u.rol === s.rol)) {
+        sesionActual = s;
+        iniciarApp();
+        return;
+      }
+    } catch {}
+  }
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+document.getElementById('l-pass').addEventListener('keydown', e => { if (e.key === 'Enter') intentarLogin(); });
+document.getElementById('l-user').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('l-pass').focus(); });
+
+/* ══════════════════
+   GESTIÓN USUARIOS (solo admin)
+══════════════════ */
+async function crearUsuario() {
+  const user = document.getElementById('nu-user').value.trim().toLowerCase();
+  const pass = document.getElementById('nu-pass').value;
+  const rol  = document.getElementById('nu-rol').value;
+  if (!user || !pass) return mostrarMsg('Completa todos los campos.', 'error', 'msg-users');
+  if (pass.length < 4) return mostrarMsg('La contraseña debe tener al menos 4 caracteres.', 'error', 'msg-users');
+  if (!/^[a-z0-9_]+$/.test(user)) return mostrarMsg('El usuario solo puede tener letras minúsculas, números y _', 'error', 'msg-users');
+  const users = cargarUsuarios();
+  if (users.find(u => u.username === user)) return mostrarMsg('Ese nombre de usuario ya existe.', 'error', 'msg-users');
+  const hash = await sha256(pass);
+  users.push({ username: user, passHash: hash, rol, creadoEn: new Date().toISOString() });
+  guardarUsuarios(users);
+  document.getElementById('nu-user').value = '';
+  document.getElementById('nu-pass').value = '';
+  document.getElementById('nu-rol').value  = 'usuario';
+  mostrarMsg('Usuario "' + user + '" creado correctamente.', 'success', 'msg-users');
+  renderUserList();
+}
+
+function eliminarUsuario(username) {
+  if (username === sesionActual.username) return mostrarMsg('No puedes eliminar tu propia cuenta.', 'error', 'msg-users');
+  if (!confirm('¿Eliminar al usuario "' + username + '"? Sus datos de contactos también serán eliminados.')) return;
+  let users = cargarUsuarios();
+  users = users.filter(u => u.username !== username);
+  guardarUsuarios(users);
+  localStorage.removeItem(storageKeyForUser(username));
+  mostrarMsg('Usuario eliminado.', 'success', 'msg-users');
+  renderUserList();
+  renderGlobalStats();
+}
+
+function renderUserList() {
+  const users = cargarUsuarios();
+  const el = document.getElementById('user-list');
+  if (!users.length) { el.innerHTML = '<div class="empty">No hay usuarios.</div>'; return; }
+  el.innerHTML = users.map(u => {
+    const inicial = u.username.charAt(0).toUpperCase();
+    const esYo    = u.username === sesionActual.username;
+    const datosU  = obtenerDatosUsuario(u.username);
+    const esSoloAdmin = users.filter(x => x.rol === 'admin').length === 1 && u.rol === 'admin';
+    return `<div class="user-item">
+      <div class="user-item-avatar ${u.rol === 'admin' ? 'admin-av' : ''}">${escHTML(inicial)}</div>
+      <div class="user-item-info">
+        <div class="user-item-name">${escHTML(u.username)} ${esYo ? '<span style="font-size:10px;color:var(--text-ter)">(tú)</span>' : ''}</div>
+        <div class="user-item-meta">Rol: ${u.rol} · ${datosU.length} contactos · Creado: ${new Date(u.creadoEn).toLocaleDateString('es-PE')}</div>
+      </div>
+      <span class="badge ${u.rol === 'admin' ? 'b-pend' : 'b-cont'}">${u.rol}</span>
+      ${!esYo && !esSoloAdmin ? `<button class="del-btn" onclick="eliminarUsuario('${escHTML(u.username)}')">Eliminar</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function obtenerDatosUsuario(username) {
+  try { return JSON.parse(localStorage.getItem(storageKeyForUser(username))) || []; } catch { return []; }
+}
+
+function renderGlobalStats() {
+  const users = cargarUsuarios();
+  let html = '';
+  let totalG = 0;
+  users.forEach(u => {
+    const d = obtenerDatosUsuario(u.username);
+    totalG += d.length;
+    html += `<div>👤 <strong>${escHTML(u.username)}</strong> (${u.rol}): ${d.length} contactos</div>`;
+  });
+  html += `<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">📊 <strong>Total global:</strong> ${totalG} contactos</div>`;
+  document.getElementById('global-stats').innerHTML = html;
+}
+
+/* Cambiar contraseña */
+async function cambiarPassword() {
+  const actual   = document.getElementById('pwd-actual').value;
+  const nueva    = document.getElementById('pwd-nueva').value;
+  const confirm  = document.getElementById('pwd-confirm').value;
+  if (!actual || !nueva || !confirm) return mostrarMsg('Completa todos los campos.', 'error', 'msg-pwd');
+  if (nueva.length < 4) return mostrarMsg('La nueva contraseña debe tener al menos 4 caracteres.', 'error', 'msg-pwd');
+  if (nueva !== confirm) return mostrarMsg('Las contraseñas nuevas no coinciden.', 'error', 'msg-pwd');
+  const hashActual = await sha256(actual);
+  const users = cargarUsuarios();
+  const yo = users.find(u => u.username === sesionActual.username);
+  if (!yo || yo.passHash !== hashActual) return mostrarMsg('La contraseña actual no es correcta.', 'error', 'msg-pwd');
+  yo.passHash = await sha256(nueva);
+  guardarUsuarios(users);
+  document.getElementById('pwd-actual').value  = '';
+  document.getElementById('pwd-nueva').value   = '';
+  document.getElementById('pwd-confirm').value = '';
+  mostrarMsg('Contraseña cambiada correctamente.', 'success', 'msg-pwd');
+}
+
 /* ═══════════════════════════════════
-   ESTADO GLOBAL
-   ═══════════════════════════════════ */
-const STORAGE_KEY = 'contactos_v2';
-let datos = cargarDatos();
+   ESTADO GLOBAL DE DATOS
+═══════════════════════════════════ */
+let STORAGE_KEY = 'crm_datos_default';
+let datos = [];
 let activeBubbleId = null;
-
 const hoy = new Date().toISOString().split('T')[0];
-document.getElementById('f-fecha').value = hoy;
 
 /* ═══════════════════════════════════
-   PERSISTENCIA — localStorage con
-   doble escritura para mayor seguridad
-   ═══════════════════════════════════ */
+   PERSISTENCIA localStorage
+═══════════════════════════════════ */
 function guardarDatos() {
   try {
     const json = JSON.stringify(datos);
     localStorage.setItem(STORAGE_KEY, json);
-    // Segunda copia de respaldo automático en localStorage
-    localStorage.setItem(STORAGE_KEY + '_backup', json);
+    localStorage.setItem(STORAGE_KEY + '_bk', json);
     mostrarIndicadorGuardado();
   } catch(e) {
-    console.error('Error al guardar:', e);
     mostrarMsg('⚠️ No se pudo guardar. Almacenamiento lleno o bloqueado.', 'error');
   }
 }
 
 function cargarDatos() {
   try {
-    // Intentar clave principal
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return JSON.parse(raw);
-    // Fallback a clave de respaldo
-    const backup = localStorage.getItem(STORAGE_KEY + '_backup');
-    if (backup) return JSON.parse(backup);
-    // Migración: clave antigua
-    const old = localStorage.getItem('contactos');
-    if (old) {
-      const parsed = JSON.parse(old);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
-      return parsed;
-    }
+    const bk = localStorage.getItem(STORAGE_KEY + '_bk');
+    if (bk) return JSON.parse(bk);
     return [];
-  } catch(e) {
-    // Si la clave principal falló, intentar backup
-    try {
-      const backup = localStorage.getItem(STORAGE_KEY + '_backup');
-      if (backup) return JSON.parse(backup);
-    } catch {}
+  } catch {
+    try { const bk = localStorage.getItem(STORAGE_KEY + '_bk'); if (bk) return JSON.parse(bk); } catch {}
     return [];
   }
 }
 
-/* Indicador visual de guardado */
 let saveTimer = null;
 function mostrarIndicadorGuardado() {
   const ind = document.getElementById('saveIndicator');
@@ -62,33 +927,48 @@ function mostrarIndicadorGuardado() {
 
 /* ═══════════════════════════════════
    TABS
-   ═══════════════════════════════════ */
+═══════════════════════════════════ */
 function switchTab(id) {
-  const ids = ['registro', 'alertas', 'excel', 'backup'];
-  document.querySelectorAll('.tab').forEach((t, i) =>
-    t.classList.toggle('active', ids[i] === id));
+  document.querySelectorAll('.tab').forEach(t => {
+    const tabId = t.getAttribute('onclick').match(/'(\w+)'/)?.[1];
+    t.classList.toggle('active', tabId === id);
+  });
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + id).classList.add('active');
-  if (id === 'excel')   renderExcelPreview();
-  if (id === 'backup')  renderStorageInfo();
-  if (id === 'alertas') renderAlertas();
+  if (id === 'excel')    renderExcelPreview();
+  if (id === 'backup')   renderStorageInfo();
+  if (id === 'alertas')  renderAlertas();
+  if (id === 'usuarios' && sesionActual?.rol === 'admin') { renderUserList(); renderGlobalStats(); }
 }
 
 /* ═══════════════════════════════════
    MENSAJES FEEDBACK
-   ═══════════════════════════════════ */
+═══════════════════════════════════ */
 let msgTimer = null;
 function mostrarMsg(txt, tipo = 'error', elId = 'msg') {
   const m = document.getElementById(elId);
+  if (!m) return;
   m.textContent = txt;
   m.className = 'msg ' + tipo;
   clearTimeout(msgTimer);
-  msgTimer = setTimeout(() => { m.className = 'msg'; }, 4000);
+  msgTimer = setTimeout(() => { m.className = 'msg'; }, 4500);
+}
+
+/* ═══════════════════════════════════
+   ESCAPE XSS
+═══════════════════════════════════ */
+function escHTML(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function escHTMLnl(str) {
+  return escHTML(str).replace(/\n/g,'<br>');
 }
 
 /* ═══════════════════════════════════
    AGREGAR REGISTRO
-   ═══════════════════════════════════ */
+═══════════════════════════════════ */
 function agregar() {
   const dni         = document.getElementById('f-dni').value.trim();
   const nombre      = document.getElementById('f-nombre').value.trim();
@@ -107,12 +987,8 @@ function agregar() {
 
   datos.unshift({
     id: Date.now(),
-    dni,
-    nombre:   nombre  || '—',
-    celular:  celular || '—',
-    fecha:    fecha   || '—',
-    estado,
-    comentarios
+    dni, nombre: nombre || '—', celular: celular || '—',
+    fecha: fecha || '—', estado, comentarios
   });
   guardarDatos();
   renderTabla();
@@ -122,81 +998,60 @@ function agregar() {
   mostrarMsg('Registro agregado y guardado.', 'success');
 }
 
-/* ═══════════════════════════════════
-   LIMPIAR FORMULARIO
-   ═══════════════════════════════════ */
 function limpiar() {
-  ['f-dni', 'f-nombre', 'f-celular', 'f-seguimiento']
-    .forEach(id => document.getElementById(id).value = '');
-  document.getElementById('f-fecha').value = hoy;
+  ['f-dni','f-nombre','f-celular','f-seguimiento'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-fecha').value  = hoy;
   document.getElementById('f-estado').value = 'Pendiente';
 }
 
 /* ═══════════════════════════════════
-   ELIMINAR REGISTRO
-   ═══════════════════════════════════ */
+   ELIMINAR
+═══════════════════════════════════ */
 function eliminar(id) {
   if (!confirm('¿Eliminar este registro?')) return;
   datos = datos.filter(d => d.id !== id);
-  guardarDatos();
-  renderTabla();
-  actualizarStats();
-  actualizarAlertBadge();
-  cerrarBurbuja();
+  guardarDatos(); renderTabla(); actualizarStats(); actualizarAlertBadge(); cerrarBurbuja();
 }
 
 function limpiarTodo() {
   if (!datos.length) return;
   if (!confirm('¿Eliminar TODOS los registros? Esta acción no se puede deshacer.')) return;
   datos = [];
-  guardarDatos();
-  renderTabla();
-  actualizarStats();
-  actualizarAlertBadge();
-  cerrarBurbuja();
-}
-
-/* ═══════════════════════════════════
-   BADGE CSS
-   ═══════════════════════════════════ */
-function badgeClass(e) {
-  return e === 'Pendiente' ? 'b-pend' : e === 'Contactado' ? 'b-cont' : 'b-cerr';
+  guardarDatos(); renderTabla(); actualizarStats(); actualizarAlertBadge(); cerrarBurbuja();
 }
 
 /* ═══════════════════════════════════
    RENDERIZAR TABLA
-   ═══════════════════════════════════ */
+═══════════════════════════════════ */
+function badgeClass(e) {
+  return e === 'Pendiente' ? 'b-pend' : e === 'Contactado' ? 'b-cont' : 'b-cerr';
+}
+
 function toggleColor(id) {
   const d = datos.find(d => d.id === id);
   if (!d) return;
-  const ciclo = { ninguno: 'verde', verde: 'amarillo', amarillo: 'rojo', rojo: 'ninguno' };
+  const ciclo = { ninguno:'verde', verde:'amarillo', amarillo:'rojo', rojo:'ninguno' };
   d.colorEstado = ciclo[d.colorEstado || 'ninguno'];
-  guardarDatos();
-  renderTabla();
-  actualizarAlertBadge();
+  guardarDatos(); renderTabla(); actualizarAlertBadge();
 }
 
 function recDotHTML(d) {
   const color = d.colorEstado || 'ninguno';
-  if (color === 'verde')
-    return `<span class="rec-dot rec-ok" title="Clic → amarillo" style="cursor:pointer" onclick="toggleColor(${d.id})"></span>`;
-  if (color === 'amarillo')
-    return `<span class="rec-dot rec-amarillo" title="Clic → rojo" style="cursor:pointer" onclick="toggleColor(${d.id})"></span>`;
-  if (color === 'rojo')
-    return `<span class="rec-dot rec-vencido" title="Clic → sin color" style="cursor:pointer" onclick="toggleColor(${d.id})"></span>`;
+  const map = { verde:['rec-ok','→ amarillo'], amarillo:['rec-amarillo','→ rojo'], rojo:['rec-vencido','→ sin color'] };
+  if (map[color]) return `<span class="rec-dot ${map[color][0]}" title="Clic ${map[color][1]}" style="cursor:pointer" onclick="toggleColor(${d.id})"></span>`;
   return `<span class="rec-dot rec-none" title="Clic → verde" style="cursor:pointer" onclick="toggleColor(${d.id})"></span>`;
 }
 
 function formatFechaSep(f) {
   if (!f || f === '—') return 'Sin fecha';
   try {
-    const [y, m, d] = f.split('-');
-    const dt = new Date(+y, +m - 1, +d);
+    const [y,m,dd] = f.split('-');
+    const dt = new Date(+y,+m-1,+dd);
     const hoyDt = new Date(); hoyDt.setHours(0,0,0,0);
-    const ayerDt = new Date(hoyDt); ayerDt.setDate(hoyDt.getDate() - 1);
-    if (dt.getTime() === hoyDt.getTime()) return `Hoy — ${f}`;
-    if (dt.getTime() === ayerDt.getTime()) return `Ayer — ${f}`;
-    return dt.toLocaleDateString('es-PE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const ayerDt = new Date(hoyDt); ayerDt.setDate(hoyDt.getDate()-1);
+    if (dt.getTime() === hoyDt.getTime()) return 'Hoy — ' + f;
+    if (dt.getTime() === ayerDt.getTime()) return 'Ayer — ' + f;
+    return dt.toLocaleDateString('es-PE',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
   } catch { return f; }
 }
 
@@ -204,209 +1059,143 @@ function renderTabla() {
   const q  = document.getElementById('buscador').value.toLowerCase();
   const fe = document.getElementById('filtro-estado').value;
   let f = datos;
-  if (q)  f = f.filter(d =>
-    d.dni.replace(/\s/g,'').includes(q.replace(/\s/g,'')) || d.nombre.toLowerCase().includes(q) || d.celular.replace(/\s/g,'').includes(q.replace(/\s/g,'')));
+
   if (fe) f = f.filter(d => d.estado === fe);
+  if (q) f = f.filter(d => {
+    const texto = [d.dni, d.nombre, d.celular].join(' ').toLowerCase();
+    const comentariosTexto = (d.comentarios || []).map(c => c.texto).join(' ').toLowerCase();
+    return texto.replace(/\s/g,'').includes(q.replace(/\s/g,'')) || comentariosTexto.includes(q);
+  });
 
   const body = document.getElementById('tabla-body');
   if (!f.length) {
-    body.innerHTML = `<tr><td colspan="9"><div class="empty">No hay registros. Agrega el primero.</div></td></tr>`;
+    body.innerHTML = '<tr><td colspan="9"><div class="empty">No hay registros. Agrega el primero.</div></td></tr>';
     return;
   }
 
-  // Agrupar por fecha
-  const grupos = [];
-  const vistFechas = {};
+  const grupos = {};
+  const orden  = [];
   f.forEach(d => {
     const key = d.fecha || '—';
-    if (!vistFechas[key]) { vistFechas[key] = []; grupos.push(key); }
-    vistFechas[key].push(d);
+    if (!grupos[key]) { grupos[key] = []; orden.push(key); }
+    grupos[key].push(d);
   });
 
   let numGlobal = f.length;
-  let html = '';
-  grupos.forEach(fecha => {
-    const grupo = vistFechas[fecha];
+  const rows = [];
+  orden.forEach(fecha => {
+    const grupo = grupos[fecha];
     const label = formatFechaSep(fecha);
-    const count = grupo.length;
-    html += `<tr class="fecha-separador"><td colspan="9"><div class="fecha-separador-inner">
-      <span class="fecha-separador-label">${label}</span>
+    rows.push(`<tr class="fecha-separador"><td colspan="9"><div class="fecha-separador-inner">
+      <span class="fecha-separador-label">${escHTML(label)}</span>
       <span class="fecha-separador-line"></span>
-      <span class="fecha-separador-count">${count} registro${count > 1 ? 's' : ''}</span>
-    </div></td></tr>`;
+      <span class="fecha-separador-count">${grupo.length} registro${grupo.length>1?'s':''}</span>
+    </div></td></tr>`);
     grupo.forEach(d => {
       const coments = d.comentarios || [];
-      const count2  = coments.length;
-      const preview = count2 > 0 ? `💬 ${count2} comentario${count2 > 1 ? 's' : ''}` : '+ Agregar';
-      const cls     = count2 > 0 ? '' : 'empty-seg';
-      const filaClass = d.colorEstado === 'rojo' ? 'fila-vencida' : d.colorEstado === 'verde' ? 'fila-ok' : d.colorEstado === 'amarillo' ? 'fila-amarilla' : '';
-      html += `
-      <tr class="${filaClass}">
+      const cnt     = coments.length;
+      const preview = cnt > 0 ? `💬 ${cnt} comentario${cnt>1?'s':''}` : '+ Agregar';
+      const cls     = cnt > 0 ? '' : 'empty-seg';
+      const fCls    = d.colorEstado==='rojo' ? 'fila-vencida' : d.colorEstado==='verde' ? 'fila-ok' : d.colorEstado==='amarillo' ? 'fila-amarilla' : '';
+      rows.push(`<tr class="${fCls}">
         <td style="color:var(--text-ter)">${numGlobal--}</td>
-        <td><strong>${d.dni}</strong></td>
-        <td>${d.nombre}</td>
-        <td>${d.celular}</td>
-        <td>${d.fecha}</td>
-        <td><span class="badge ${badgeClass(d.estado)}">${d.estado}</span></td>
+        <td><strong>${escHTML(d.dni)}</strong></td>
+        <td>${escHTML(d.nombre)}</td>
+        <td>${escHTML(d.celular)}</td>
+        <td>${escHTML(d.fecha)}</td>
+        <td><span class="badge ${badgeClass(d.estado)}">${escHTML(d.estado)}</span></td>
         <td><div class="rec-cell">${recDotHTML(d)}</div></td>
         <td class="seg-cell">
-          <span class="seg-trigger ${cls}" onclick="abrirBurbuja(event, ${d.id})">${preview}</span>
+          <span class="seg-trigger ${cls}" onclick="abrirBurbuja(event,${d.id})">${escHTML(preview)}</span>
         </td>
         <td style="display:flex;gap:4px;align-items:center">
-          <button class="edit-btn" onclick="abrirModal(${d.id})">Editar</button>
-          <button class="del-btn" onclick="eliminar(${d.id})">Eliminar</button>
+          <button class="edit-btn" onclick="abrirModal(${d.id})" aria-label="Editar ${escHTML(d.nombre)}">Editar</button>
+          <button class="del-btn" onclick="eliminar(${d.id})" aria-label="Eliminar ${escHTML(d.nombre)}">Eliminar</button>
         </td>
-      </tr>`;
+      </tr>`);
     });
   });
-  body.innerHTML = html;
+  body.innerHTML = rows.join('');
 }
 
 /* ═══════════════════════════════════
    ESTADÍSTICAS
-   ═══════════════════════════════════ */
+═══════════════════════════════════ */
 function actualizarStats() {
   document.getElementById('st-total').textContent = datos.length;
-  document.getElementById('st-pend').textContent  = datos.filter(d => d.estado === 'Pendiente').length;
-  document.getElementById('st-cont').textContent  = datos.filter(d => d.estado === 'Contactado').length;
-  document.getElementById('st-cerr').textContent  = datos.filter(d => d.estado === 'Cerrado').length;
+  document.getElementById('st-pend').textContent  = datos.filter(d => d.estado==='Pendiente').length;
+  document.getElementById('st-cont').textContent  = datos.filter(d => d.estado==='Contactado').length;
+  document.getElementById('st-cerr').textContent  = datos.filter(d => d.estado==='Cerrado').length;
 }
 
-/* ══════════════════════════════════════════
-   BURBUJA DE SEGUIMIENTO
-   ══════════════════════════════════════════ */
-function abrirBurbuja(event, id) {
-  event.stopPropagation();
-  activeBubbleId = id;
-  const registro = datos.find(d => d.id === id);
-  if (!registro) return;
-
-  document.getElementById('bubbleName').textContent = registro.nombre !== '—' ? registro.nombre : 'Sin nombre';
-  document.getElementById('bubbleDni').textContent  = 'DNI: ' + (registro.dni || '—');
-  document.getElementById('bubbleNewText').value    = '';
-  document.getElementById('bubbleSearchInput').value = '';
-  document.getElementById('bubbleSearchCount').textContent = '';
-
-  // Recordatorio
-  const recInput = document.getElementById('bubbleRecDate');
-  recInput.value = registro.recordatorio || '';
-  actualizarBubbleRecBadge(registro);
-
-  renderBubbleComments(registro);
-
-  const bubble  = document.getElementById('segBubble');
-  const overlay = document.getElementById('bubbleOverlay');
-  const rect    = event.currentTarget.getBoundingClientRect();
-  const bW = 340, bH = 420, margin = 8;
-  const vW = window.innerWidth, vH = window.innerHeight;
-
-  let top  = rect.bottom + margin;
-  let left = rect.left;
-
-  if (left + bW > vW - margin) left = vW - bW - margin;
-  if (left < margin) left = margin;
-  if (top + bH > vH - margin) top = rect.top - bH - margin;
-  if (top < margin) top = margin;
-
-  bubble.style.top  = top  + 'px';
-  bubble.style.left = left + 'px';
-  bubble.classList.add('open');
-  overlay.classList.add('open');
-  document.getElementById('bubbleNewText').focus();
-}
-
-function guardarRecordatorio() {
-  if (!activeBubbleId) return;
-  const registro = datos.find(d => d.id === activeBubbleId);
-  if (!registro) return;
-  const val = document.getElementById('bubbleRecDate').value;
-  registro.recordatorio = val || null;
-  guardarDatos();
-  actualizarBubbleRecBadge(registro);
-  renderTabla();
-  actualizarAlertBadge();
-}
-
-function actualizarBubbleRecBadge(registro) {
-  const badge = document.getElementById('bubbleRecBadge');
-  if (!registro.recordatorio) { badge.style.display = 'none'; return; }
-  const vencido = registro.recordatorio < hoy;
-  badge.style.display = 'inline';
-  badge.className = 'bubble-rec-badge ' + (vencido ? 'brb-vencido' : 'brb-ok');
-  badge.textContent = vencido ? '🔴 Vencido' : '🟢 Pendiente';
-}
-
+/* ═══════════════════════════════════
+   ALERTAS
+═══════════════════════════════════ */
 function actualizarAlertBadge() {
-  const rojos = datos.filter(d => d.colorEstado === 'rojo').length;
+  const rojos = datos.filter(d => d.colorEstado==='rojo').length;
   const badge = document.getElementById('alert-badge');
-  if (rojos > 0) { badge.style.display = 'inline-flex'; badge.textContent = rojos; }
-  else { badge.style.display = 'none'; }
+  badge.style.display = rojos > 0 ? 'inline-flex' : 'none';
+  badge.textContent = rojos;
 }
 
 function ultimoComentario(d) {
   const c = d.comentarios;
   if (!c || !c.length) return '';
-  const last = c[c.length - 1];
-  return `<div class="ai-comment">💬 ${last.texto}</div>`;
+  return `<div class="ai-comment">💬 ${escHTML(c[c.length-1].texto.substring(0,80))}</div>`;
 }
 
-function alertItemHTML(d, dotClass, titulo, estiloExtra) {
-  return `
-    <div class="alert-item" ${estiloExtra}>
-      <span class="rec-dot ${dotClass}" style="cursor:pointer" title="${titulo}" onclick="toggleColor(${d.id});renderAlertas()"></span>
-      <div class="ai-info">
-        <div class="ai-name" style="${dotClass === 'rec-ok' ? 'color:var(--ok-text)' : dotClass === 'rec-none' ? 'color:var(--text-sec)' : ''}">${d.nombre !== '—' ? d.nombre : 'Sin nombre'} ${d.dni && d.dni !== '—' ? `<span style="font-weight:400;font-size:11px">(${d.dni})</span>` : ''}</div>
-        <div class="ai-meta">Estado: ${d.estado} · Celular: ${d.celular !== '—' ? d.celular : '—'}</div>
-        ${ultimoComentario(d)}
-      </div>
-    </div>`;
+function alertItemHTML(d, dotCls, titulo, estiloExtra) {
+  return `<div class="alert-item" ${estiloExtra}>
+    <span class="rec-dot ${dotCls}" style="cursor:pointer" title="${titulo}" onclick="toggleColor(${d.id});renderAlertas()"></span>
+    <div class="ai-info">
+      <div class="ai-name">${escHTML(d.nombre!=='—'?d.nombre:'Sin nombre')} ${d.dni&&d.dni!=='—'?`<span style="font-weight:400;font-size:11px">(${escHTML(d.dni)})</span>`:''}</div>
+      <div class="ai-meta">Estado: ${escHTML(d.estado)} · Celular: ${escHTML(d.celular)}</div>
+      ${ultimoComentario(d)}
+    </div>
+  </div>`;
 }
 
 function renderAlertas() {
-  const rojos     = datos.filter(d => d.colorEstado === 'rojo');
-  const amarillos = datos.filter(d => d.colorEstado === 'amarillo');
-  const verdes    = datos.filter(d => d.colorEstado === 'verde');
-  const grises    = datos.filter(d => !d.colorEstado || d.colorEstado === 'ninguno');
-
-  const listV = document.getElementById('alertas-list');
-  listV.parentElement.querySelector('.card-title').textContent = 'Contactos en rojo';
-  listV.innerHTML = rojos.length
-    ? rojos.map(d => alertItemHTML(d, 'rec-vencido', 'Clic → sin color', '')).join('')
-    : '<div class="empty">No hay contactos marcados en rojo.</div>';
-
-  // Panel amarillo (si no existe, crearlo después de rojo)
-  let listA = document.getElementById('amarillos-list');
-  if (!listA) {
-    const card = document.createElement('div');
-    card.className = 'card'; card.style.marginTop = '1rem';
-    card.innerHTML = '<div class="card-title">Contactos en amarillo</div><div class="alert-list" id="amarillos-list"></div>';
-    listV.parentElement.insertAdjacentElement('afterend', card);
-    listA = document.getElementById('amarillos-list');
-  }
-  listA.parentElement.querySelector('.card-title').textContent = 'Contactos en amarillo';
-  listA.innerHTML = amarillos.length
-    ? amarillos.map(d => alertItemHTML(d, 'rec-amarillo', 'Clic → rojo', 'style="border-color:#fcd34d;background:#fffbeb"')).join('')
-    : '<div class="empty">No hay contactos marcados en amarillo.</div>';
-
-  const listP = document.getElementById('proximos-list');
-  listP.parentElement.querySelector('.card-title').textContent = 'Contactos en verde';
-  listP.innerHTML = verdes.length
-    ? verdes.map(d => alertItemHTML(d, 'rec-ok', 'Clic → amarillo', 'style="border-color:var(--ok-border);background:var(--ok-bg)"')).join('')
-    : '<div class="empty">No hay contactos marcados en verde.</div>';
-
-  let listG = document.getElementById('grises-list');
-  if (!listG) {
-    const card = document.createElement('div');
-    card.className = 'card'; card.style.marginTop = '1rem';
-    card.innerHTML = '<div class="card-title">Contactos sin color</div><div class="alert-list" id="grises-list"></div>';
-    listP.parentElement.parentElement.appendChild(card);
-    listG = document.getElementById('grises-list');
-  }
-  listG.innerHTML = grises.length
-    ? grises.map(d => alertItemHTML(d, 'rec-none', 'Clic → verde', 'style="border-color:var(--border);background:var(--bg-sec)"')).join('')
-    : '<div class="empty">No hay contactos sin color.</div>';
+  const rojos     = datos.filter(d => d.colorEstado==='rojo');
+  const amarillos = datos.filter(d => d.colorEstado==='amarillo');
+  const verdes    = datos.filter(d => d.colorEstado==='verde');
+  const grises    = datos.filter(d => !d.colorEstado||d.colorEstado==='ninguno');
+  document.getElementById('alertas-list').innerHTML  = rojos.length ? rojos.map(d=>alertItemHTML(d,'rec-vencido','Clic → sin color','')).join('') : '<div class="empty">No hay contactos marcados en rojo.</div>';
+  document.getElementById('amarillos-list').innerHTML= amarillos.length ? amarillos.map(d=>alertItemHTML(d,'rec-amarillo','Clic → rojo','style="border-color:var(--warn-border);background:var(--warn-bg)"')).join('') : '<div class="empty">No hay contactos en amarillo.</div>';
+  document.getElementById('proximos-list').innerHTML = verdes.length ? verdes.map(d=>alertItemHTML(d,'rec-ok','Clic → amarillo','style="border-color:var(--ok-border);background:var(--ok-bg)"')).join('') : '<div class="empty">No hay contactos en verde.</div>';
+  document.getElementById('grises-list').innerHTML   = grises.length ? grises.map(d=>alertItemHTML(d,'rec-none','Clic → verde','style="border-color:var(--border);background:var(--bg-sec)"')).join('') : '<div class="empty">No hay contactos sin color.</div>';
 }
 
+/* ═══════════════════════════════════
+   BURBUJA SEGUIMIENTO
+═══════════════════════════════════ */
+function abrirBurbuja(event, id) {
+  event.stopPropagation();
+  activeBubbleId = id;
+  const reg = datos.find(d => d.id === id);
+  if (!reg) return;
+  document.getElementById('bubbleName').textContent = reg.nombre !== '—' ? reg.nombre : 'Sin nombre';
+  document.getElementById('bubbleDni').textContent  = 'DNI: ' + (reg.dni || '—');
+  document.getElementById('bubbleNewText').value    = '';
+  document.getElementById('bubbleSearchInput').value= '';
+  document.getElementById('bubbleSearchCount').textContent = '';
+  document.getElementById('bubbleRecDate').value = reg.recordatorio || '';
+  actualizarBubbleRecBadge(reg);
+  renderBubbleComments(reg);
+  const bubble  = document.getElementById('segBubble');
+  const overlay = document.getElementById('bubbleOverlay');
+  const rect    = event.currentTarget.getBoundingClientRect();
+  const bW=340, bH=420, margin=8;
+  const vW=window.innerWidth, vH=window.innerHeight;
+  let top=rect.bottom+margin, left=rect.left;
+  if (left+bW>vW-margin) left=vW-bW-margin;
+  if (left<margin) left=margin;
+  if (top+bH>vH-margin) top=rect.top-bH-margin;
+  if (top<margin) top=margin;
+  bubble.style.top=top+'px'; bubble.style.left=left+'px';
+  bubble.classList.add('open'); overlay.classList.add('open');
+  document.getElementById('bubbleNewText').focus();
+}
 
 function cerrarBurbuja() {
   document.getElementById('segBubble').classList.remove('open');
@@ -414,79 +1203,86 @@ function cerrarBurbuja() {
   activeBubbleId = null;
 }
 
+function guardarRecordatorio() {
+  if (!activeBubbleId) return;
+  const reg = datos.find(d => d.id === activeBubbleId);
+  if (!reg) return;
+  reg.recordatorio = document.getElementById('bubbleRecDate').value || null;
+  guardarDatos(); actualizarBubbleRecBadge(reg); renderTabla(); actualizarAlertBadge();
+}
+
+function actualizarBubbleRecBadge(reg) {
+  const badge = document.getElementById('bubbleRecBadge');
+  if (!reg.recordatorio) { badge.style.display='none'; return; }
+  const vencido = reg.recordatorio < hoy;
+  badge.style.display='inline';
+  badge.className = 'bubble-rec-badge ' + (vencido ? 'brb-vencido' : 'brb-ok');
+  badge.textContent = vencido ? '🔴 Vencido' : '🟢 Pendiente';
+}
+
 function tiempoRelativo(fechaStr) {
   if (!fechaStr) return '';
   try {
-    const partes = fechaStr.replace(' (editado)', '').split(/[/, :]/);
+    const limpia = fechaStr.replace(' (editado)','');
+    const partes = limpia.split(/[/, :]/);
     let d;
-    if (partes.length >= 5) {
-      d = new Date(+partes[2], +partes[1]-1, +partes[0], +partes[3], +partes[4]);
-    } else {
-      d = new Date(fechaStr.replace(' (editado)', ''));
-    }
+    if (partes.length >= 5) d = new Date(+partes[2],+partes[1]-1,+partes[0],+partes[3],+partes[4]);
+    else d = new Date(limpia);
     if (isNaN(d)) return '';
     const diff = Date.now() - d.getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1)  return 'ahora mismo';
-    if (mins < 60) return `hace ${mins} min`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24)  return `hace ${hrs}h`;
-    const dias = Math.floor(hrs / 24);
-    if (dias < 7)  return `hace ${dias}d`;
-    const sem = Math.floor(dias / 7);
-    if (sem < 5)   return `hace ${sem} sem`;
+    const mins = Math.floor(diff/60000);
+    if (mins<1)  return 'ahora mismo';
+    if (mins<60) return `hace ${mins} min`;
+    const hrs = Math.floor(mins/60);
+    if (hrs<24)  return `hace ${hrs}h`;
+    const dias = Math.floor(hrs/24);
+    if (dias<7)  return `hace ${dias}d`;
+    const sem = Math.floor(dias/7);
+    if (sem<5)   return `hace ${sem} sem`;
     return `hace ${Math.floor(dias/30)} mes${Math.floor(dias/30)>1?'es':''}`;
   } catch { return ''; }
 }
 
-function renderBubbleComments(registro, filtro) {
+function renderBubbleComments(reg, filtro) {
   const container = document.getElementById('bubbleComments');
-  const coments   = registro.comentarios || [];
-
+  const coments   = reg.comentarios || [];
   const searchRow = document.getElementById('bubbleSearchRow');
   searchRow.style.display = coments.length > 2 ? 'flex' : 'none';
   if (coments.length <= 2) {
-    document.getElementById('bubbleSearchInput').value = '';
-    document.getElementById('bubbleSearchCount').textContent = '';
+    document.getElementById('bubbleSearchInput').value='';
+    document.getElementById('bubbleSearchCount').textContent='';
   }
-
-  if (!coments.length) { container.innerHTML = ''; return; }
-
-  const q = (filtro || '').toLowerCase().trim();
-  const visibles = q ? coments.filter(c => c.texto.toLowerCase().includes(q)) : coments;
-
+  if (!coments.length) { container.innerHTML=''; return; }
+  const q = (filtro||'').toLowerCase().trim();
+  const visibles = q ? coments.filter(c=>c.texto.toLowerCase().includes(q)) : coments;
   if (q && !visibles.length) {
-    container.innerHTML = `<div class="no-results-bubble">Sin resultados para "<strong>${escHTML(q)}</strong>"</div>`;
-    document.getElementById('bubbleSearchCount').textContent = '0 resultados';
-    return;
+    container.innerHTML=`<div class="no-results-bubble">Sin resultados para "<strong>${escHTML(q)}</strong>"</div>`;
+    document.getElementById('bubbleSearchCount').textContent='0 resultados'; return;
   }
-  if (q) document.getElementById('bubbleSearchCount').textContent = `${visibles.length} de ${coments.length}`;
-  else   document.getElementById('bubbleSearchCount').textContent = coments.length > 2 ? `${coments.length} comentarios` : '';
-
-  const totalComents = coments.length;
-  container.innerHTML = visibles.map((c, idx) => {
-    const numReal = coments.indexOf(c) + 1;
-    const rel = tiempoRelativo(c.fecha);
-    const isLong = c.texto.length > 180 || c.texto.split('\n').length > 3;
+  if (q) document.getElementById('bubbleSearchCount').textContent=`${visibles.length} de ${coments.length}`;
+  else   document.getElementById('bubbleSearchCount').textContent= coments.length>2?`${coments.length} comentarios`:'';
+  container.innerHTML = visibles.map(c => {
+    const numReal = coments.indexOf(c)+1;
+    const rel     = tiempoRelativo(c.fecha);
+    const isLong  = c.texto.length>180||c.texto.split('\n').length>3;
     const editado = c.fecha.includes('(editado)') ? ' <span style="color:var(--text-ter)">(editado)</span>' : '';
-    return `
-    <div class="comment-timeline-item" id="ci-wrap-${c.id}">
+    return `<div class="comment-timeline-item" id="ci-wrap-${c.id}">
       <div class="comment-dot"></div>
       <div class="comment-body">
-        <div class="comment-item${q && c.texto.toLowerCase().includes(q) ? ' highlight' : ''}" id="ci-${c.id}">
+        <div class="comment-item${q&&c.texto.toLowerCase().includes(q)?' highlight':''}" id="ci-${c.id}">
           <div class="comment-meta">
             <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
               <span class="comment-num">#${numReal}</span>
-              <span class="comment-time-exact">${c.fecha.replace(' (editado)','')}</span>${editado}
-              ${rel ? `<span class="comment-time-rel">${rel}</span>` : ''}
+              <span>${escHTML(c.fecha.replace(' (editado)',''))}</span>${editado}
+              ${rel?`<span class="comment-time-rel">${rel}</span>`:''}
             </div>
             <div style="display:flex;gap:4px">
               <button onclick="editarComentario(${c.id})" style="font-size:10px;padding:1px 7px;color:var(--info-text);border-color:var(--info-border);background:var(--info-bg)">Editar</button>
               <button onclick="eliminarComentario(${c.id})" style="font-size:10px;padding:1px 7px;color:var(--danger-text);border-color:var(--danger-border);background:var(--danger-bg)">✕</button>
             </div>
           </div>
-          <div class="comment-text${isLong ? ' collapsed' : ''}" id="ct-${c.id}">${escHTML(c.texto)}</div>
-          ${isLong ? `<button class="comment-expand-btn" id="ceb-${c.id}" onclick="toggleExpandComentario(${c.id})">▼ Ver más</button>` : ''}
+          <div class="comment-text${isLong?' collapsed':''}" id="ct-${c.id}">${escHTMLnl(c.texto)}</div>
+          ${isLong?`<button class="comment-expand-btn" id="ceb-${c.id}" onclick="toggleExpandComentario(${c.id})">▼ Ver más</button>`:''}
           <textarea class="comment-edit-input" id="ce-${c.id}" style="display:none">${escHTML(c.texto)}</textarea>
           <div class="comment-actions" id="ca-${c.id}" style="display:none">
             <button class="primary" style="font-size:10px;padding:2px 8px" onclick="guardarEdicion(${c.id})">Guardar</button>
@@ -499,312 +1295,212 @@ function renderBubbleComments(registro, filtro) {
 }
 
 function toggleExpandComentario(cid) {
-  const el  = document.getElementById('ct-' + cid);
-  const btn = document.getElementById('ceb-' + cid);
-  if (!el || !btn) return;
-  const collapsed = el.classList.toggle('collapsed');
-  btn.textContent = collapsed ? '▼ Ver más' : '▲ Ver menos';
+  const el=document.getElementById('ct-'+cid), btn=document.getElementById('ceb-'+cid);
+  if(!el||!btn) return;
+  btn.textContent = el.classList.toggle('collapsed') ? '▼ Ver más' : '▲ Ver menos';
 }
 
 function filtrarComentarios() {
   if (!activeBubbleId) return;
-  const registro = datos.find(d => d.id === activeBubbleId);
-  if (!registro) return;
-  const q = document.getElementById('bubbleSearchInput').value;
-  renderBubbleComments(registro, q);
-}
-
-function escHTML(str) {
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  const reg = datos.find(d=>d.id===activeBubbleId);
+  if (!reg) return;
+  renderBubbleComments(reg, document.getElementById('bubbleSearchInput').value);
 }
 
 function agregarComentario() {
   if (!activeBubbleId) return;
   const txt = document.getElementById('bubbleNewText').value.trim();
   if (!txt) return;
-  const registro = datos.find(d => d.id === activeBubbleId);
-  if (!registro) return;
-  if (!registro.comentarios) registro.comentarios = [];
-  registro.comentarios.push({ id: Date.now(), texto: txt, fecha: new Date().toLocaleString('es-PE') });
-  document.getElementById('bubbleNewText').value = '';
-  document.getElementById('bubbleSearchInput').value = '';
-  guardarDatos();
-  renderBubbleComments(registro);
-  renderTabla();
-  const c = document.getElementById('bubbleComments');
-  c.scrollTop = c.scrollHeight;
+  const reg = datos.find(d=>d.id===activeBubbleId);
+  if (!reg) return;
+  if (!reg.comentarios) reg.comentarios=[];
+  reg.comentarios.push({id:Date.now(), texto:txt, fecha:new Date().toLocaleString('es-PE')});
+  document.getElementById('bubbleNewText').value='';
+  document.getElementById('bubbleSearchInput').value='';
+  guardarDatos(); renderBubbleComments(reg); renderTabla();
+  const c=document.getElementById('bubbleComments'); c.scrollTop=c.scrollHeight;
 }
 
 function editarComentario(cid) {
-  document.getElementById('ct-' + cid).style.display = 'none';
-  document.getElementById('ce-' + cid).style.display = 'block';
-  document.getElementById('ca-' + cid).style.display = 'flex';
-  document.getElementById('ce-' + cid).focus();
+  document.getElementById('ct-'+cid).style.display='none';
+  document.getElementById('ce-'+cid).style.display='block';
+  document.getElementById('ca-'+cid).style.display='flex';
+  document.getElementById('ce-'+cid).focus();
 }
 
 function cancelarEdicion(cid) {
-  const registro = datos.find(d => d.id === activeBubbleId);
-  if (registro) renderBubbleComments(registro);
+  const reg=datos.find(d=>d.id===activeBubbleId);
+  if(reg) renderBubbleComments(reg);
 }
 
 function guardarEdicion(cid) {
   if (!activeBubbleId) return;
-  const nuevoTexto = document.getElementById('ce-' + cid).value.trim();
+  const nuevoTexto=document.getElementById('ce-'+cid).value.trim();
   if (!nuevoTexto) return;
-  const registro = datos.find(d => d.id === activeBubbleId);
-  if (!registro) return;
-  const comentario = registro.comentarios.find(c => c.id === cid);
-  if (!comentario) return;
-  comentario.texto = nuevoTexto;
-  comentario.fecha += ' (editado)';
-  guardarDatos();
-  renderBubbleComments(registro);
-  renderTabla();
+  const reg=datos.find(d=>d.id===activeBubbleId); if(!reg) return;
+  const com=reg.comentarios.find(c=>c.id===cid); if(!com) return;
+  com.texto=nuevoTexto; com.fecha+=' (editado)';
+  guardarDatos(); renderBubbleComments(reg); renderTabla();
 }
 
 function eliminarComentario(cid) {
   if (!activeBubbleId) return;
   if (!confirm('¿Eliminar este comentario?')) return;
-  const registro = datos.find(d => d.id === activeBubbleId);
-  if (!registro) return;
-  registro.comentarios = registro.comentarios.filter(c => c.id !== cid);
-  guardarDatos();
-  renderBubbleComments(registro);
-  renderTabla();
+  const reg=datos.find(d=>d.id===activeBubbleId); if(!reg) return;
+  reg.comentarios=reg.comentarios.filter(c=>c.id!==cid);
+  guardarDatos(); renderBubbleComments(reg); renderTabla();
 }
 
 document.getElementById('bubbleNewText').addEventListener('keydown', function(e) {
-  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') agregarComentario();
+  if ((e.ctrlKey||e.metaKey)&&e.key==='Enter') agregarComentario();
 });
 
 /* ═══════════════════════════════════
    MODAL EDICIÓN
-   ═══════════════════════════════════ */
+═══════════════════════════════════ */
 let editingId = null;
 
 function abrirModal(id) {
-  const d = datos.find(d => d.id === id);
-  if (!d) return;
-  editingId = id;
-  document.getElementById('e-dni').value    = d.dni !== '—' ? d.dni : '';
-  document.getElementById('e-nombre').value = d.nombre !== '—' ? d.nombre : '';
-  document.getElementById('e-celular').value= d.celular !== '—' ? d.celular : '';
-  document.getElementById('e-fecha').value  = d.fecha !== '—' ? d.fecha : '';
+  const d=datos.find(d=>d.id===id); if(!d) return;
+  editingId=id;
+  document.getElementById('e-dni').value    = d.dni!=='—'?d.dni:'';
+  document.getElementById('e-nombre').value = d.nombre!=='—'?d.nombre:'';
+  document.getElementById('e-celular').value= d.celular!=='—'?d.celular:'';
+  document.getElementById('e-fecha').value  = d.fecha!=='—'?d.fecha:'';
   document.getElementById('e-estado').value = d.estado;
-  document.getElementById('msg-edit').className = 'msg';
+  document.getElementById('msg-edit').className='msg';
   document.getElementById('editModalOverlay').classList.add('open');
 }
 
 function cerrarModal(event) {
-  if (event && event.target !== document.getElementById('editModalOverlay')) return;
+  if (event&&event.target!==document.getElementById('editModalOverlay')) return;
   document.getElementById('editModalOverlay').classList.remove('open');
-  editingId = null;
+  editingId=null;
 }
 
 function guardarEdicionRegistro() {
   if (!editingId) return;
-  const d = datos.find(d => d.id === editingId);
-  if (!d) return;
-
-  const dni     = document.getElementById('e-dni').value.trim();
-  const nombre  = document.getElementById('e-nombre').value.trim();
-  const celular = document.getElementById('e-celular').value.trim();
-  const fecha   = document.getElementById('e-fecha').value;
-  const estado  = document.getElementById('e-estado').value;
-
-  const dniLimpio = dni.replace(/\s/g, '');
-  if (dni && !/^\d+$/.test(dniLimpio)) {
-    mostrarMsg('El DNI solo debe contener números.', 'error', 'msg-edit'); return;
-  }
-  const duplicado = datos.find(x => x.dni === dni && x.id !== editingId);
-  if (dni && duplicado) {
-    mostrarMsg('Ya existe otro registro con ese DNI.', 'error', 'msg-edit'); return;
-  }
-
-  d.dni     = dni     || '—';
-  d.nombre  = nombre  || '—';
-  d.celular = celular || '—';
-  d.fecha   = fecha   || '—';
-  d.estado  = estado;
-
-  guardarDatos();
-  renderTabla();
-  actualizarStats();
-  actualizarAlertBadge();
+  const d=datos.find(d=>d.id===editingId); if(!d) return;
+  const dni    =document.getElementById('e-dni').value.trim();
+  const nombre =document.getElementById('e-nombre').value.trim();
+  const celular=document.getElementById('e-celular').value.trim();
+  const fecha  =document.getElementById('e-fecha').value;
+  const estado =document.getElementById('e-estado').value;
+  const dniLimpio=dni.replace(/\s/g,'');
+  if (dni&&!/^\d+$/.test(dniLimpio)) { mostrarMsg('El DNI solo debe contener números.','error','msg-edit'); return; }
+  if (dni&&datos.find(x=>x.dni===dni&&x.id!==editingId)) { mostrarMsg('Ya existe otro registro con ese DNI.','error','msg-edit'); return; }
+  d.dni=dni||'—'; d.nombre=nombre||'—'; d.celular=celular||'—'; d.fecha=fecha||'—'; d.estado=estado;
+  guardarDatos(); renderTabla(); actualizarStats(); actualizarAlertBadge();
   document.getElementById('editModalOverlay').classList.remove('open');
-  editingId = null;
-  mostrarMsg('Registro actualizado correctamente.', 'success');
+  editingId=null;
+  mostrarMsg('Registro actualizado correctamente.','success');
 }
 
 /* ═══════════════════════════════════
    EXPORTAR EXCEL
-   ═══════════════════════════════════ */
+═══════════════════════════════════ */
 function exportarExcel() {
   if (!datos.length) { mostrarMsg('No hay datos para exportar.'); return; }
-  const filas = datos.map((d, i) => ({
-    '#'                  : datos.length - i,
-    'DNI'               : d.dni,
-    'Nombre completo'   : d.nombre,
-    'Celular'           : d.celular,
-    'Fecha de contacto' : d.fecha,
-    'Estado'            : d.estado,
-    'Comentarios'       : (d.comentarios || []).map(c => `[${c.fecha}] ${c.texto}`).join(' | ')
+  const filas=datos.map((d,i)=>({
+    '#': datos.length-i,
+    'DNI': d.dni, 'Nombre completo': d.nombre, 'Celular': d.celular,
+    'Fecha de contacto': d.fecha, 'Estado': d.estado,
+    'Comentarios': (d.comentarios||[]).map(c=>`[${c.fecha}] ${c.texto}`).join(' | ')
   }));
-  const ws = XLSX.utils.json_to_sheet(filas);
-  ws['!cols'] = [{ wch:5 },{ wch:12 },{ wch:28 },{ wch:14 },{ wch:18 },{ wch:14 },{ wch:60 }];
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Contactos');
-  XLSX.writeFile(wb, `registros_contactos_${new Date().toISOString().slice(0,10)}.xlsx`);
+  const ws=XLSX.utils.json_to_sheet(filas);
+  ws['!cols']=[{wch:5},{wch:12},{wch:28},{wch:14},{wch:18},{wch:14},{wch:60}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Contactos');
+  XLSX.writeFile(wb,`registros_${sesionActual.username}_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
 /* ═══════════════════════════════════
    VISTA PREVIA EXCEL
-   ═══════════════════════════════════ */
+═══════════════════════════════════ */
 function renderExcelPreview() {
-  const contenedor = document.getElementById('xl-preview');
-  if (!datos.length) {
-    contenedor.innerHTML = '<div class="empty">Aún no hay registros. Agrega algunos primero.</div>';
-    return;
-  }
-  const cols = ['#', 'DNI', 'Nombre completo', 'Celular', 'Fecha de contacto', 'Estado', 'Comentarios'];
-  const filas = datos.map((d, i) => [
-    datos.length - i, d.dni, d.nombre, d.celular, d.fecha, d.estado,
-    (d.comentarios || []).map(c => c.texto).join(' | ') || '—'
+  const contenedor=document.getElementById('xl-preview');
+  if (!datos.length) { contenedor.innerHTML='<div class="empty">Aún no hay registros.</div>'; return; }
+  const cols=['#','DNI','Nombre completo','Celular','Fecha de contacto','Estado','Comentarios'];
+  const filas=datos.map((d,i)=>[
+    datos.length-i, d.dni, d.nombre, d.celular, d.fecha, d.estado,
+    (d.comentarios||[]).map(c=>c.texto).join(' | ')||'—'
   ]);
-  let html = '<table><thead><tr>' + cols.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
-  filas.forEach(f => { html += '<tr>' + f.map(v => `<td title="${v}">${v}</td>`).join('') + '</tr>'; });
-  html += '</tbody></table>';
-  contenedor.innerHTML = html;
+  let html='<table><thead><tr>'+cols.map(c=>`<th>${escHTML(c)}</th>`).join('')+'</tr></thead><tbody>';
+  filas.forEach(f=>{ html+='<tr>'+f.map(v=>`<td title="${escHTML(String(v))}">${escHTML(String(v))}</td>`).join('')+'</tr>'; });
+  html+='</tbody></table>';
+  contenedor.innerHTML=html;
 }
 
 /* ═══════════════════════════════════
-   BACKUP JSON — EXPORTAR
-   ═══════════════════════════════════ */
+   BACKUP JSON
+═══════════════════════════════════ */
 function exportarBackupJSON() {
-  if (!datos.length) { mostrarMsg('No hay datos para exportar.', 'error', 'msg-backup'); return; }
-  const payload = {
-    version: 2,
-    fecha_exportacion: new Date().toISOString(),
-    total: datos.length,
-    datos: datos
-  };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = `backup_contactos_${new Date().toISOString().slice(0,10)}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-  mostrarMsg(`✅ Copia guardada con ${datos.length} registros.`, 'success', 'msg-backup');
+  if (!datos.length) { mostrarMsg('No hay datos para exportar.','error','msg-backup'); return; }
+  const payload={version:2, fecha_exportacion:new Date().toISOString(), usuario:sesionActual.username, total:datos.length, datos};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url;
+  a.download=`backup_${sesionActual.username}_${new Date().toISOString().slice(0,10)}.json`;
+  a.click(); URL.revokeObjectURL(url);
+  mostrarMsg(`✅ Copia guardada con ${datos.length} registros.`,'success','msg-backup');
 }
 
-/* ═══════════════════════════════════
-   BACKUP JSON — IMPORTAR
-   ═══════════════════════════════════ */
 function importarBackup(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = function(e) {
+  const file=event.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(e) {
     try {
-      const raw = JSON.parse(e.target.result);
-      let importados = [];
-
-      // Soportar formato con envoltorio {version, datos} o array directo
-      if (Array.isArray(raw)) {
-        importados = raw;
-      } else if (raw.datos && Array.isArray(raw.datos)) {
-        importados = raw.datos;
-      } else {
-        throw new Error('Formato no reconocido');
-      }
-
-      if (!importados.length) {
-        mostrarMsg('El archivo no contiene registros.', 'error', 'msg-backup');
-        return;
-      }
-
-      const opcion = confirm(
-        `Se encontraron ${importados.length} registros en el archivo.\n\n` +
-        `• Aceptar = REEMPLAZAR todos los datos actuales\n` +
-        `• Cancelar = COMBINAR (agrega los nuevos, mantiene los actuales)`
-      );
-
+      const raw=JSON.parse(e.target.result);
+      let importados=[];
+      if (Array.isArray(raw)) importados=raw;
+      else if (raw.datos&&Array.isArray(raw.datos)) importados=raw.datos;
+      else throw new Error('Formato no reconocido');
+      if (!importados.length) { mostrarMsg('El archivo no contiene registros.','error','msg-backup'); return; }
+      const opcion=confirm(`Se encontraron ${importados.length} registros.\n\nAceptar = REEMPLAZAR todo\nCancelar = COMBINAR (agrega nuevos, mantiene actuales)`);
       if (opcion) {
-        // Reemplazar
-        datos = importados;
+        datos=importados;
       } else {
-        // Combinar: evitar duplicados por id
-        const idsActuales = new Set(datos.map(d => d.id));
-        const nuevos = importados.filter(d => !idsActuales.has(d.id));
-        datos = [...datos, ...nuevos];
-        datos.sort((a, b) => b.id - a.id);
-        mostrarMsg(`✅ Combinados: ${nuevos.length} nuevos registros agregados.`, 'success', 'msg-backup');
+        const idsActuales=new Set(datos.map(d=>d.id));
+        const nuevos=importados.filter(d=>!idsActuales.has(d.id));
+        datos=[...datos,...nuevos]; datos.sort((a,b)=>b.id-a.id);
+        mostrarMsg(`✅ Combinados: ${nuevos.length} nuevos registros.`,'success','msg-backup');
       }
-
-      // Migración de campo antiguo
-      datos.forEach(d => {
-        if (!d.comentarios) {
-          d.comentarios = d.seguimiento
-            ? [{ id: Date.now() + Math.random(), texto: d.seguimiento, fecha: d.fecha || 'Importado' }]
-            : [];
-          delete d.seguimiento;
-        }
-      });
-
-      guardarDatos();
-      renderTabla();
-      actualizarStats();
-      renderStorageInfo();
-      if (opcion) mostrarMsg(`✅ ${datos.length} registros restaurados correctamente.`, 'success', 'msg-backup');
-
+      datos.forEach(d=>{ if(!d.comentarios){ d.comentarios=d.seguimiento?[{id:Date.now()+Math.random(),texto:d.seguimiento,fecha:d.fecha||'Importado'}]:[];delete d.seguimiento; }});
+      guardarDatos(); renderTabla(); actualizarStats(); renderStorageInfo();
+      if (opcion) mostrarMsg(`✅ ${datos.length} registros restaurados.`,'success','msg-backup');
     } catch(err) {
-      mostrarMsg('❌ Error al leer el archivo. Asegúrate de usar un .json exportado desde esta app.', 'error', 'msg-backup');
+      mostrarMsg('❌ Error al leer el archivo. Usa un .json exportado desde esta app.','error','msg-backup');
     }
   };
   reader.readAsText(file);
-  // Limpiar input para permitir volver a cargar el mismo archivo
-  event.target.value = '';
+  event.target.value='';
 }
 
 /* ═══════════════════════════════════
-   INFO DE ALMACENAMIENTO
-   ═══════════════════════════════════ */
+   INFO ALMACENAMIENTO
+═══════════════════════════════════ */
 function renderStorageInfo() {
-  const raw   = localStorage.getItem(STORAGE_KEY) || '';
-  const kb    = (raw.length * 2 / 1024).toFixed(1);
-  const total = datos.length;
-  const conComentarios = datos.filter(d => d.comentarios && d.comentarios.length > 0).length;
-  const totalComentarios = datos.reduce((sum, d) => sum + (d.comentarios || []).length, 0);
-  const ultima = datos.length > 0 ? datos[0].id : null;
-  const ultimaFecha = ultima ? new Date(ultima).toLocaleString('es-PE') : '—';
-
-  document.getElementById('storage-info').innerHTML = `
-    <div>📦 <strong>Registros guardados:</strong> ${total}</div>
-    <div>💬 <strong>Total de comentarios:</strong> ${totalComentarios} (en ${conComentarios} contactos)</div>
-    <div>💾 <strong>Espacio usado:</strong> ~${kb} KB</div>
-    <div>🕐 <strong>Último registro agregado:</strong> ${ultimaFecha}</div>
-    <div>🔑 <strong>Clave en localStorage:</strong> <code style="font-family:var(--mono);font-size:11px">${STORAGE_KEY}</code></div>
-  `;
+  const raw=localStorage.getItem(STORAGE_KEY)||'';
+  const kb=(raw.length*2/1024).toFixed(1);
+  const totalComentarios=datos.reduce((sum,d)=>sum+(d.comentarios||[]).length,0);
+  const conComentarios=datos.filter(d=>d.comentarios&&d.comentarios.length>0).length;
+  const ultima=datos.length>0?datos[0].id:null;
+  const ultimaFecha=ultima?new Date(ultima).toLocaleString('es-PE'):'—';
+  const pct=(raw.length*2/(5*1024*1024)*100).toFixed(1);
+  const alertaEsp=parseFloat(pct)>80?` <span style="color:var(--danger-text)">⚠️ Espacio casi lleno</span>`:'';
+  document.getElementById('storage-info').innerHTML=`
+    <div>👤 <strong>Usuario:</strong> ${escHTML(sesionActual.username)} (${sesionActual.rol})</div>
+    <div>📦 <strong>Registros:</strong> ${datos.length}</div>
+    <div>💬 <strong>Comentarios:</strong> ${totalComentarios} (en ${conComentarios} contactos)</div>
+    <div>💾 <strong>Espacio:</strong> ~${kb} KB / ~5 MB (${pct}%)${alertaEsp}</div>
+    <div>🕐 <strong>Último registro:</strong> ${ultimaFecha}</div>
+    <div>🔑 <strong>Clave:</strong> <code style="font-family:var(--mono);font-size:11px">${escHTML(STORAGE_KEY)}</code></div>`;
 }
 
-/* ═══════════════════════════════════
-   MIGRACIÓN: registros viejos
-   ═══════════════════════════════════ */
-datos.forEach(d => {
-  if (!d.comentarios) {
-    d.comentarios = d.seguimiento
-      ? [{ id: Date.now() + Math.random(), texto: d.seguimiento, fecha: d.fecha || 'Importado' }]
-      : [];
-    delete d.seguimiento;
-  }
-});
-guardarDatos();
-
-/* ═══════════════════════════════════
-   INICIO
-   ═══════════════════════════════════ */
-renderTabla();
-actualizarStats();
-actualizarAlertBadge();
-    
+/* ══════════════════
+   ARRANCAR
+══════════════════ */
+arrancar();
+</script>
+</body>
+</html>
