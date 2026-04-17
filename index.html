@@ -1,261 +1,809 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sistema de Registro de Contactos</title>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-  <style>
-    
-  </style>
-</head>
-<body>
-<div class="wrapper">
+/* ═══════════════════════════════════
+   ESTADO GLOBAL
+   ═══════════════════════════════════ */
+const STORAGE_KEY = 'contactos_v2';
+let datos = cargarDatos();
+let activeBubbleId = null;
 
-  <h1>
-    Registro de Contactos
-    <span>Sistema de seguimiento</span>
-    <span id="saveIndicator" class="save-indicator" style="display:none">
-      <span class="dot"></span> Guardado
-    </span>
-  </h1>
+const hoy = new Date().toISOString().split('T')[0];
+document.getElementById('f-fecha').value = hoy;
 
-  <!-- TABS -->
-  <div class="tabs">
-    <button class="tab active" onclick="switchTab('registro')">Registro</button>
-    <button class="tab" onclick="switchTab('alertas')" id="tab-btn-alertas">Alertas<span id="alert-badge" class="alert-count" style="display:none">0</span></button>
-    <button class="tab" onclick="switchTab('excel')">Excel virtual</button>
-    <button class="tab" onclick="switchTab('backup')">Copia de seguridad</button>
-  </div>
+/* ═══════════════════════════════════
+   PERSISTENCIA — localStorage con
+   doble escritura para mayor seguridad
+   ═══════════════════════════════════ */
+function guardarDatos() {
+  try {
+    const json = JSON.stringify(datos);
+    localStorage.setItem(STORAGE_KEY, json);
+    // Segunda copia de respaldo automático en localStorage
+    localStorage.setItem(STORAGE_KEY + '_backup', json);
+    mostrarIndicadorGuardado();
+  } catch(e) {
+    console.error('Error al guardar:', e);
+    mostrarMsg('⚠️ No se pudo guardar. Almacenamiento lleno o bloqueado.', 'error');
+  }
+}
 
-  <!-- ══ TAB: REGISTRO ══ -->
-  <div id="tab-registro" class="panel active">
+function cargarDatos() {
+  try {
+    // Intentar clave principal
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+    // Fallback a clave de respaldo
+    const backup = localStorage.getItem(STORAGE_KEY + '_backup');
+    if (backup) return JSON.parse(backup);
+    // Migración: clave antigua
+    const old = localStorage.getItem('contactos');
+    if (old) {
+      const parsed = JSON.parse(old);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+      return parsed;
+    }
+    return [];
+  } catch(e) {
+    // Si la clave principal falló, intentar backup
+    try {
+      const backup = localStorage.getItem(STORAGE_KEY + '_backup');
+      if (backup) return JSON.parse(backup);
+    } catch {}
+    return [];
+  }
+}
 
-    <div class="card">
-      <div class="card-title">Nuevo registro</div>
-      <div class="form-grid">
-        <div class="field">
-          <label>DNI <span class="opt">(opcional)</span></label>
-          <input id="f-dni" placeholder="12345678" maxlength="20">
-        </div>
-        <div class="field">
-          <label>Nombre completo <span class="opt">(opcional)</span></label>
-          <input id="f-nombre" placeholder="Nombre y apellido">
-        </div>
-        <div class="field">
-          <label>Celular <span class="opt">(opcional)</span></label>
-          <input id="f-celular" placeholder="999 999 999" maxlength="20">
-        </div>
-        <div class="field">
-          <label>Fecha de contacto <span class="opt">(opcional)</span></label>
-          <input type="date" id="f-fecha">
-        </div>
-        <div class="field">
-          <label>Estado</label>
-          <select id="f-estado">
-            <option>Pendiente</option>
-            <option>Contactado</option>
-            <option>Cerrado</option>
-          </select>
-        </div>
-        <div class="field span2">
-          <label>Primer comentario de seguimiento <span class="opt">(opcional)</span></label>
-          <textarea id="f-seguimiento" placeholder="Observaciones del contacto..."></textarea>
+/* Indicador visual de guardado */
+let saveTimer = null;
+function mostrarIndicadorGuardado() {
+  const ind = document.getElementById('saveIndicator');
+  ind.style.display = 'inline-flex';
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { ind.style.display = 'none'; }, 2500);
+}
+
+/* ═══════════════════════════════════
+   TABS
+   ═══════════════════════════════════ */
+function switchTab(id) {
+  const ids = ['registro', 'alertas', 'excel', 'backup'];
+  document.querySelectorAll('.tab').forEach((t, i) =>
+    t.classList.toggle('active', ids[i] === id));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  if (id === 'excel')   renderExcelPreview();
+  if (id === 'backup')  renderStorageInfo();
+  if (id === 'alertas') renderAlertas();
+}
+
+/* ═══════════════════════════════════
+   MENSAJES FEEDBACK
+   ═══════════════════════════════════ */
+let msgTimer = null;
+function mostrarMsg(txt, tipo = 'error', elId = 'msg') {
+  const m = document.getElementById(elId);
+  m.textContent = txt;
+  m.className = 'msg ' + tipo;
+  clearTimeout(msgTimer);
+  msgTimer = setTimeout(() => { m.className = 'msg'; }, 4000);
+}
+
+/* ═══════════════════════════════════
+   AGREGAR REGISTRO
+   ═══════════════════════════════════ */
+function agregar() {
+  const dni         = document.getElementById('f-dni').value.trim();
+  const nombre      = document.getElementById('f-nombre').value.trim();
+  const celular     = document.getElementById('f-celular').value.trim();
+  const fecha       = document.getElementById('f-fecha').value;
+  const estado      = document.getElementById('f-estado').value;
+  const seguimiento = document.getElementById('f-seguimiento').value.trim();
+
+  const dniLimpio = dni.replace(/\s/g, '');
+  if (dni && !/^\d+$/.test(dniLimpio)) return mostrarMsg('El DNI solo debe contener números.');
+  if (dni && datos.find(d => d.dni === dni)) return mostrarMsg('Ya existe un registro con ese DNI.');
+
+  const comentarios = seguimiento
+    ? [{ id: Date.now(), texto: seguimiento, fecha: new Date().toLocaleString('es-PE') }]
+    : [];
+
+  datos.unshift({
+    id: Date.now(),
+    dni,
+    nombre:   nombre  || '—',
+    celular:  celular || '—',
+    fecha:    fecha   || '—',
+    estado,
+    comentarios
+  });
+  guardarDatos();
+  renderTabla();
+  actualizarStats();
+  actualizarAlertBadge();
+  limpiar();
+  mostrarMsg('Registro agregado y guardado.', 'success');
+}
+
+/* ═══════════════════════════════════
+   LIMPIAR FORMULARIO
+   ═══════════════════════════════════ */
+function limpiar() {
+  ['f-dni', 'f-nombre', 'f-celular', 'f-seguimiento']
+    .forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-fecha').value = hoy;
+  document.getElementById('f-estado').value = 'Pendiente';
+}
+
+/* ═══════════════════════════════════
+   ELIMINAR REGISTRO
+   ═══════════════════════════════════ */
+function eliminar(id) {
+  if (!confirm('¿Eliminar este registro?')) return;
+  datos = datos.filter(d => d.id !== id);
+  guardarDatos();
+  renderTabla();
+  actualizarStats();
+  actualizarAlertBadge();
+  cerrarBurbuja();
+}
+
+function limpiarTodo() {
+  if (!datos.length) return;
+  if (!confirm('¿Eliminar TODOS los registros? Esta acción no se puede deshacer.')) return;
+  datos = [];
+  guardarDatos();
+  renderTabla();
+  actualizarStats();
+  actualizarAlertBadge();
+  cerrarBurbuja();
+}
+
+/* ═══════════════════════════════════
+   BADGE CSS
+   ═══════════════════════════════════ */
+function badgeClass(e) {
+  return e === 'Pendiente' ? 'b-pend' : e === 'Contactado' ? 'b-cont' : 'b-cerr';
+}
+
+/* ═══════════════════════════════════
+   RENDERIZAR TABLA
+   ═══════════════════════════════════ */
+function toggleColor(id) {
+  const d = datos.find(d => d.id === id);
+  if (!d) return;
+  const ciclo = { ninguno: 'verde', verde: 'amarillo', amarillo: 'rojo', rojo: 'ninguno' };
+  d.colorEstado = ciclo[d.colorEstado || 'ninguno'];
+  guardarDatos();
+  renderTabla();
+  actualizarAlertBadge();
+}
+
+function recDotHTML(d) {
+  const color = d.colorEstado || 'ninguno';
+  if (color === 'verde')
+    return `<span class="rec-dot rec-ok" title="Clic → amarillo" style="cursor:pointer" onclick="toggleColor(${d.id})"></span>`;
+  if (color === 'amarillo')
+    return `<span class="rec-dot rec-amarillo" title="Clic → rojo" style="cursor:pointer" onclick="toggleColor(${d.id})"></span>`;
+  if (color === 'rojo')
+    return `<span class="rec-dot rec-vencido" title="Clic → sin color" style="cursor:pointer" onclick="toggleColor(${d.id})"></span>`;
+  return `<span class="rec-dot rec-none" title="Clic → verde" style="cursor:pointer" onclick="toggleColor(${d.id})"></span>`;
+}
+
+function formatFechaSep(f) {
+  if (!f || f === '—') return 'Sin fecha';
+  try {
+    const [y, m, d] = f.split('-');
+    const dt = new Date(+y, +m - 1, +d);
+    const hoyDt = new Date(); hoyDt.setHours(0,0,0,0);
+    const ayerDt = new Date(hoyDt); ayerDt.setDate(hoyDt.getDate() - 1);
+    if (dt.getTime() === hoyDt.getTime()) return `Hoy — ${f}`;
+    if (dt.getTime() === ayerDt.getTime()) return `Ayer — ${f}`;
+    return dt.toLocaleDateString('es-PE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  } catch { return f; }
+}
+
+function renderTabla() {
+  const q  = document.getElementById('buscador').value.toLowerCase();
+  const fe = document.getElementById('filtro-estado').value;
+  let f = datos;
+  if (q)  f = f.filter(d =>
+    d.dni.replace(/\s/g,'').includes(q.replace(/\s/g,'')) || d.nombre.toLowerCase().includes(q) || d.celular.replace(/\s/g,'').includes(q.replace(/\s/g,'')));
+  if (fe) f = f.filter(d => d.estado === fe);
+
+  const body = document.getElementById('tabla-body');
+  if (!f.length) {
+    body.innerHTML = `<tr><td colspan="9"><div class="empty">No hay registros. Agrega el primero.</div></td></tr>`;
+    return;
+  }
+
+  // Agrupar por fecha
+  const grupos = [];
+  const vistFechas = {};
+  f.forEach(d => {
+    const key = d.fecha || '—';
+    if (!vistFechas[key]) { vistFechas[key] = []; grupos.push(key); }
+    vistFechas[key].push(d);
+  });
+
+  let numGlobal = f.length;
+  let html = '';
+  grupos.forEach(fecha => {
+    const grupo = vistFechas[fecha];
+    const label = formatFechaSep(fecha);
+    const count = grupo.length;
+    html += `<tr class="fecha-separador"><td colspan="9"><div class="fecha-separador-inner">
+      <span class="fecha-separador-label">${label}</span>
+      <span class="fecha-separador-line"></span>
+      <span class="fecha-separador-count">${count} registro${count > 1 ? 's' : ''}</span>
+    </div></td></tr>`;
+    grupo.forEach(d => {
+      const coments = d.comentarios || [];
+      const count2  = coments.length;
+      const preview = count2 > 0 ? `💬 ${count2} comentario${count2 > 1 ? 's' : ''}` : '+ Agregar';
+      const cls     = count2 > 0 ? '' : 'empty-seg';
+      const filaClass = d.colorEstado === 'rojo' ? 'fila-vencida' : d.colorEstado === 'verde' ? 'fila-ok' : d.colorEstado === 'amarillo' ? 'fila-amarilla' : '';
+      html += `
+      <tr class="${filaClass}">
+        <td style="color:var(--text-ter)">${numGlobal--}</td>
+        <td><strong>${d.dni}</strong></td>
+        <td>${d.nombre}</td>
+        <td>${d.celular}</td>
+        <td>${d.fecha}</td>
+        <td><span class="badge ${badgeClass(d.estado)}">${d.estado}</span></td>
+        <td><div class="rec-cell">${recDotHTML(d)}</div></td>
+        <td class="seg-cell">
+          <span class="seg-trigger ${cls}" onclick="abrirBurbuja(event, ${d.id})">${preview}</span>
+        </td>
+        <td style="display:flex;gap:4px;align-items:center">
+          <button class="edit-btn" onclick="abrirModal(${d.id})">Editar</button>
+          <button class="del-btn" onclick="eliminar(${d.id})">Eliminar</button>
+        </td>
+      </tr>`;
+    });
+  });
+  body.innerHTML = html;
+}
+
+/* ═══════════════════════════════════
+   ESTADÍSTICAS
+   ═══════════════════════════════════ */
+function actualizarStats() {
+  document.getElementById('st-total').textContent = datos.length;
+  document.getElementById('st-pend').textContent  = datos.filter(d => d.estado === 'Pendiente').length;
+  document.getElementById('st-cont').textContent  = datos.filter(d => d.estado === 'Contactado').length;
+  document.getElementById('st-cerr').textContent  = datos.filter(d => d.estado === 'Cerrado').length;
+}
+
+/* ══════════════════════════════════════════
+   BURBUJA DE SEGUIMIENTO
+   ══════════════════════════════════════════ */
+function abrirBurbuja(event, id) {
+  event.stopPropagation();
+  activeBubbleId = id;
+  const registro = datos.find(d => d.id === id);
+  if (!registro) return;
+
+  document.getElementById('bubbleName').textContent = registro.nombre !== '—' ? registro.nombre : 'Sin nombre';
+  document.getElementById('bubbleDni').textContent  = 'DNI: ' + (registro.dni || '—');
+  document.getElementById('bubbleNewText').value    = '';
+  document.getElementById('bubbleSearchInput').value = '';
+  document.getElementById('bubbleSearchCount').textContent = '';
+
+  // Recordatorio
+  const recInput = document.getElementById('bubbleRecDate');
+  recInput.value = registro.recordatorio || '';
+  actualizarBubbleRecBadge(registro);
+
+  renderBubbleComments(registro);
+
+  const bubble  = document.getElementById('segBubble');
+  const overlay = document.getElementById('bubbleOverlay');
+  const rect    = event.currentTarget.getBoundingClientRect();
+  const bW = 340, bH = 420, margin = 8;
+  const vW = window.innerWidth, vH = window.innerHeight;
+
+  let top  = rect.bottom + margin;
+  let left = rect.left;
+
+  if (left + bW > vW - margin) left = vW - bW - margin;
+  if (left < margin) left = margin;
+  if (top + bH > vH - margin) top = rect.top - bH - margin;
+  if (top < margin) top = margin;
+
+  bubble.style.top  = top  + 'px';
+  bubble.style.left = left + 'px';
+  bubble.classList.add('open');
+  overlay.classList.add('open');
+  document.getElementById('bubbleNewText').focus();
+}
+
+function guardarRecordatorio() {
+  if (!activeBubbleId) return;
+  const registro = datos.find(d => d.id === activeBubbleId);
+  if (!registro) return;
+  const val = document.getElementById('bubbleRecDate').value;
+  registro.recordatorio = val || null;
+  guardarDatos();
+  actualizarBubbleRecBadge(registro);
+  renderTabla();
+  actualizarAlertBadge();
+}
+
+function actualizarBubbleRecBadge(registro) {
+  const badge = document.getElementById('bubbleRecBadge');
+  if (!registro.recordatorio) { badge.style.display = 'none'; return; }
+  const vencido = registro.recordatorio < hoy;
+  badge.style.display = 'inline';
+  badge.className = 'bubble-rec-badge ' + (vencido ? 'brb-vencido' : 'brb-ok');
+  badge.textContent = vencido ? '🔴 Vencido' : '🟢 Pendiente';
+}
+
+function actualizarAlertBadge() {
+  const rojos = datos.filter(d => d.colorEstado === 'rojo').length;
+  const badge = document.getElementById('alert-badge');
+  if (rojos > 0) { badge.style.display = 'inline-flex'; badge.textContent = rojos; }
+  else { badge.style.display = 'none'; }
+}
+
+function ultimoComentario(d) {
+  const c = d.comentarios;
+  if (!c || !c.length) return '';
+  const last = c[c.length - 1];
+  return `<div class="ai-comment">💬 ${last.texto}</div>`;
+}
+
+function alertItemHTML(d, dotClass, titulo, estiloExtra) {
+  return `
+    <div class="alert-item" ${estiloExtra}>
+      <span class="rec-dot ${dotClass}" style="cursor:pointer" title="${titulo}" onclick="toggleColor(${d.id});renderAlertas()"></span>
+      <div class="ai-info">
+        <div class="ai-name" style="${dotClass === 'rec-ok' ? 'color:var(--ok-text)' : dotClass === 'rec-none' ? 'color:var(--text-sec)' : ''}">${d.nombre !== '—' ? d.nombre : 'Sin nombre'} ${d.dni && d.dni !== '—' ? `<span style="font-weight:400;font-size:11px">(${d.dni})</span>` : ''}</div>
+        <div class="ai-meta">Estado: ${d.estado} · Celular: ${d.celular !== '—' ? d.celular : '—'}</div>
+        ${ultimoComentario(d)}
+      </div>
+    </div>`;
+}
+
+function renderAlertas() {
+  const rojos     = datos.filter(d => d.colorEstado === 'rojo');
+  const amarillos = datos.filter(d => d.colorEstado === 'amarillo');
+  const verdes    = datos.filter(d => d.colorEstado === 'verde');
+  const grises    = datos.filter(d => !d.colorEstado || d.colorEstado === 'ninguno');
+
+  const listV = document.getElementById('alertas-list');
+  listV.parentElement.querySelector('.card-title').textContent = 'Contactos en rojo';
+  listV.innerHTML = rojos.length
+    ? rojos.map(d => alertItemHTML(d, 'rec-vencido', 'Clic → sin color', '')).join('')
+    : '<div class="empty">No hay contactos marcados en rojo.</div>';
+
+  // Panel amarillo (si no existe, crearlo después de rojo)
+  let listA = document.getElementById('amarillos-list');
+  if (!listA) {
+    const card = document.createElement('div');
+    card.className = 'card'; card.style.marginTop = '1rem';
+    card.innerHTML = '<div class="card-title">Contactos en amarillo</div><div class="alert-list" id="amarillos-list"></div>';
+    listV.parentElement.insertAdjacentElement('afterend', card);
+    listA = document.getElementById('amarillos-list');
+  }
+  listA.parentElement.querySelector('.card-title').textContent = 'Contactos en amarillo';
+  listA.innerHTML = amarillos.length
+    ? amarillos.map(d => alertItemHTML(d, 'rec-amarillo', 'Clic → rojo', 'style="border-color:#fcd34d;background:#fffbeb"')).join('')
+    : '<div class="empty">No hay contactos marcados en amarillo.</div>';
+
+  const listP = document.getElementById('proximos-list');
+  listP.parentElement.querySelector('.card-title').textContent = 'Contactos en verde';
+  listP.innerHTML = verdes.length
+    ? verdes.map(d => alertItemHTML(d, 'rec-ok', 'Clic → amarillo', 'style="border-color:var(--ok-border);background:var(--ok-bg)"')).join('')
+    : '<div class="empty">No hay contactos marcados en verde.</div>';
+
+  let listG = document.getElementById('grises-list');
+  if (!listG) {
+    const card = document.createElement('div');
+    card.className = 'card'; card.style.marginTop = '1rem';
+    card.innerHTML = '<div class="card-title">Contactos sin color</div><div class="alert-list" id="grises-list"></div>';
+    listP.parentElement.parentElement.appendChild(card);
+    listG = document.getElementById('grises-list');
+  }
+  listG.innerHTML = grises.length
+    ? grises.map(d => alertItemHTML(d, 'rec-none', 'Clic → verde', 'style="border-color:var(--border);background:var(--bg-sec)"')).join('')
+    : '<div class="empty">No hay contactos sin color.</div>';
+}
+
+
+function cerrarBurbuja() {
+  document.getElementById('segBubble').classList.remove('open');
+  document.getElementById('bubbleOverlay').classList.remove('open');
+  activeBubbleId = null;
+}
+
+function tiempoRelativo(fechaStr) {
+  if (!fechaStr) return '';
+  try {
+    const partes = fechaStr.replace(' (editado)', '').split(/[/, :]/);
+    let d;
+    if (partes.length >= 5) {
+      d = new Date(+partes[2], +partes[1]-1, +partes[0], +partes[3], +partes[4]);
+    } else {
+      d = new Date(fechaStr.replace(' (editado)', ''));
+    }
+    if (isNaN(d)) return '';
+    const diff = Date.now() - d.getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1)  return 'ahora mismo';
+    if (mins < 60) return `hace ${mins} min`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24)  return `hace ${hrs}h`;
+    const dias = Math.floor(hrs / 24);
+    if (dias < 7)  return `hace ${dias}d`;
+    const sem = Math.floor(dias / 7);
+    if (sem < 5)   return `hace ${sem} sem`;
+    return `hace ${Math.floor(dias/30)} mes${Math.floor(dias/30)>1?'es':''}`;
+  } catch { return ''; }
+}
+
+function renderBubbleComments(registro, filtro) {
+  const container = document.getElementById('bubbleComments');
+  const coments   = registro.comentarios || [];
+
+  const searchRow = document.getElementById('bubbleSearchRow');
+  searchRow.style.display = coments.length > 2 ? 'flex' : 'none';
+  if (coments.length <= 2) {
+    document.getElementById('bubbleSearchInput').value = '';
+    document.getElementById('bubbleSearchCount').textContent = '';
+  }
+
+  if (!coments.length) { container.innerHTML = ''; return; }
+
+  const q = (filtro || '').toLowerCase().trim();
+  const visibles = q ? coments.filter(c => c.texto.toLowerCase().includes(q)) : coments;
+
+  if (q && !visibles.length) {
+    container.innerHTML = `<div class="no-results-bubble">Sin resultados para "<strong>${escHTML(q)}</strong>"</div>`;
+    document.getElementById('bubbleSearchCount').textContent = '0 resultados';
+    return;
+  }
+  if (q) document.getElementById('bubbleSearchCount').textContent = `${visibles.length} de ${coments.length}`;
+  else   document.getElementById('bubbleSearchCount').textContent = coments.length > 2 ? `${coments.length} comentarios` : '';
+
+  const totalComents = coments.length;
+  container.innerHTML = visibles.map((c, idx) => {
+    const numReal = coments.indexOf(c) + 1;
+    const rel = tiempoRelativo(c.fecha);
+    const isLong = c.texto.length > 180 || c.texto.split('\n').length > 3;
+    const editado = c.fecha.includes('(editado)') ? ' <span style="color:var(--text-ter)">(editado)</span>' : '';
+    return `
+    <div class="comment-timeline-item" id="ci-wrap-${c.id}">
+      <div class="comment-dot"></div>
+      <div class="comment-body">
+        <div class="comment-item${q && c.texto.toLowerCase().includes(q) ? ' highlight' : ''}" id="ci-${c.id}">
+          <div class="comment-meta">
+            <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+              <span class="comment-num">#${numReal}</span>
+              <span class="comment-time-exact">${c.fecha.replace(' (editado)','')}</span>${editado}
+              ${rel ? `<span class="comment-time-rel">${rel}</span>` : ''}
+            </div>
+            <div style="display:flex;gap:4px">
+              <button onclick="editarComentario(${c.id})" style="font-size:10px;padding:1px 7px;color:var(--info-text);border-color:var(--info-border);background:var(--info-bg)">Editar</button>
+              <button onclick="eliminarComentario(${c.id})" style="font-size:10px;padding:1px 7px;color:var(--danger-text);border-color:var(--danger-border);background:var(--danger-bg)">✕</button>
+            </div>
+          </div>
+          <div class="comment-text${isLong ? ' collapsed' : ''}" id="ct-${c.id}">${escHTML(c.texto)}</div>
+          ${isLong ? `<button class="comment-expand-btn" id="ceb-${c.id}" onclick="toggleExpandComentario(${c.id})">▼ Ver más</button>` : ''}
+          <textarea class="comment-edit-input" id="ce-${c.id}" style="display:none">${escHTML(c.texto)}</textarea>
+          <div class="comment-actions" id="ca-${c.id}" style="display:none">
+            <button class="primary" style="font-size:10px;padding:2px 8px" onclick="guardarEdicion(${c.id})">Guardar</button>
+            <button style="font-size:10px;padding:2px 8px" onclick="cancelarEdicion(${c.id})">Cancelar</button>
+          </div>
         </div>
       </div>
-      <div class="form-note">Todos los campos son opcionales. Puedes completarlos después.</div>
-      <div class="btn-row">
-        <button class="primary" onclick="agregar()">+ Agregar registro</button>
-        <button onclick="limpiar()">Limpiar</button>
-      </div>
-      <div id="msg" class="msg"></div>
-    </div>
+    </div>`;
+  }).join('');
+}
 
-    <!-- Stats -->
-    <div class="stats">
-      <div class="stat"><div class="stat-label">Total</div><div class="stat-val" id="st-total">0</div></div>
-      <div class="stat"><div class="stat-label">Pendientes</div><div class="stat-val" id="st-pend">0</div></div>
-      <div class="stat"><div class="stat-label">Contactados</div><div class="stat-val" id="st-cont">0</div></div>
-      <div class="stat"><div class="stat-label">Cerrados</div><div class="stat-val" id="st-cerr">0</div></div>
-    </div>
+function toggleExpandComentario(cid) {
+  const el  = document.getElementById('ct-' + cid);
+  const btn = document.getElementById('ceb-' + cid);
+  if (!el || !btn) return;
+  const collapsed = el.classList.toggle('collapsed');
+  btn.textContent = collapsed ? '▼ Ver más' : '▲ Ver menos';
+}
 
-    <!-- Tabla -->
-    <div class="card">
-      <div class="card-title">Registros guardados</div>
-      <div class="search-row">
-        <input id="buscador" placeholder="Buscar por DNI, nombre o celular..." oninput="renderTabla()">
-        <select id="filtro-estado" onchange="renderTabla()">
-          <option value="">Todos los estados</option>
-          <option>Pendiente</option>
-          <option>Contactado</option>
-          <option>Cerrado</option>
-        </select>
-        <button class="success" onclick="exportarExcel()">⬇ Descargar .xlsx</button>
-        <button onclick="limpiarTodo()" class="danger">Borrar todo</button>
-      </div>
-      <div class="tbl-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>#</th><th>DNI</th><th>Nombre</th><th>Celular</th>
-              <th>Fecha</th><th>Estado</th><th>Recordatorio</th><th>Seguimiento</th><th></th>
-            </tr>
-          </thead>
-          <tbody id="tabla-body"></tbody>
-        </table>
-      </div>
-    </div>
+function filtrarComentarios() {
+  if (!activeBubbleId) return;
+  const registro = datos.find(d => d.id === activeBubbleId);
+  if (!registro) return;
+  const q = document.getElementById('bubbleSearchInput').value;
+  renderBubbleComments(registro, q);
+}
 
-  </div><!-- /tab-registro -->
+function escHTML(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
 
-  <!-- ══ TAB: EXCEL VIRTUAL ══ -->
-  <div id="tab-excel" class="panel">
-    <div class="card">
-      <div class="card-title">Vista previa — Excel virtual</div>
-      <p style="font-size:13px;color:var(--text-sec);margin-bottom:1rem;">
-        Así se verán tus datos en el archivo <strong>.xlsx</strong>. Se sincroniza en tiempo real.
-      </p>
-      <div class="tbl-wrap xl-preview" id="xl-preview"></div>
-      <div class="btn-row" style="margin-top:1rem;">
-        <button class="success" onclick="exportarExcel()">⬇ Descargar .xlsx</button>
-      </div>
-    </div>
-  </div>
+function agregarComentario() {
+  if (!activeBubbleId) return;
+  const txt = document.getElementById('bubbleNewText').value.trim();
+  if (!txt) return;
+  const registro = datos.find(d => d.id === activeBubbleId);
+  if (!registro) return;
+  if (!registro.comentarios) registro.comentarios = [];
+  registro.comentarios.push({ id: Date.now(), texto: txt, fecha: new Date().toLocaleString('es-PE') });
+  document.getElementById('bubbleNewText').value = '';
+  document.getElementById('bubbleSearchInput').value = '';
+  guardarDatos();
+  renderBubbleComments(registro);
+  renderTabla();
+  const c = document.getElementById('bubbleComments');
+  c.scrollTop = c.scrollHeight;
+}
 
-  <!-- ══ TAB: ALERTAS ══ -->
-  <div id="tab-alertas" class="panel">
-    <div class="card">
-      <div class="card-title">Recordatorios vencidos</div>
-      <p style="font-size:13px;color:var(--text-sec);margin-bottom:1rem;">
-        Contactos cuya fecha de recordatorio ya pasó y siguen en estado <strong>Pendiente</strong> o <strong>Contactado</strong>.
-      </p>
-      <div class="alert-list" id="alertas-list">
-        <div class="empty">No hay recordatorios vencidos. ¡Todo al día! 🎉</div>
-      </div>
-    </div>
-    <div class="card" style="margin-top:1rem;">
-      <div class="card-title">Próximos recordatorios (hoy y mañana)</div>
-      <div class="alert-list" id="proximos-list">
-        <div class="empty">No hay recordatorios próximos.</div>
-      </div>
-    </div>
-  </div>
+function editarComentario(cid) {
+  document.getElementById('ct-' + cid).style.display = 'none';
+  document.getElementById('ce-' + cid).style.display = 'block';
+  document.getElementById('ca-' + cid).style.display = 'flex';
+  document.getElementById('ce-' + cid).focus();
+}
 
-  <!-- ══ TAB: BACKUP ══ -->
-  <div id="tab-backup" class="panel">
-    <div class="card">
-      <div class="card-title">Copia de seguridad</div>
+function cancelarEdicion(cid) {
+  const registro = datos.find(d => d.id === activeBubbleId);
+  if (registro) renderBubbleComments(registro);
+}
 
-      <div class="backup-info">
-        <strong>¿Por qué hacer una copia?</strong><br>
-        Tus datos se guardan automáticamente en este navegador cada vez que agregas o modificas un registro.
-        Sin embargo, si limpias el caché del navegador o usas otro dispositivo, los datos podrían perderse.
-        Descarga una copia de seguridad periódicamente para proteger tu información.
-      </div>
+function guardarEdicion(cid) {
+  if (!activeBubbleId) return;
+  const nuevoTexto = document.getElementById('ce-' + cid).value.trim();
+  if (!nuevoTexto) return;
+  const registro = datos.find(d => d.id === activeBubbleId);
+  if (!registro) return;
+  const comentario = registro.comentarios.find(c => c.id === cid);
+  if (!comentario) return;
+  comentario.texto = nuevoTexto;
+  comentario.fecha += ' (editado)';
+  guardarDatos();
+  renderBubbleComments(registro);
+  renderTabla();
+}
 
-      <div class="card-title" style="margin-top:0.5rem">Exportar</div>
-      <div class="btn-row">
-        <button class="success" onclick="exportarBackupJSON()">⬇ Guardar copia (.json)</button>
-        <button class="success" onclick="exportarExcel()">⬇ Exportar a Excel (.xlsx)</button>
-      </div>
-      <p style="font-size:11px;color:var(--text-ter);margin-top:8px;">
-        El archivo <strong>.json</strong> guarda todos los datos incluyendo comentarios y puede restaurarse aquí.<br>
-        El archivo <strong>.xlsx</strong> es solo para ver en Excel, no se puede restaurar.
-      </p>
-    </div>
+function eliminarComentario(cid) {
+  if (!activeBubbleId) return;
+  if (!confirm('¿Eliminar este comentario?')) return;
+  const registro = datos.find(d => d.id === activeBubbleId);
+  if (!registro) return;
+  registro.comentarios = registro.comentarios.filter(c => c.id !== cid);
+  guardarDatos();
+  renderBubbleComments(registro);
+  renderTabla();
+}
 
-    <div class="card">
-      <div class="card-title">Restaurar copia</div>
-      <p style="font-size:13px;color:var(--text-sec);margin-bottom:1rem;">
-        Carga un archivo <strong>.json</strong> exportado previamente desde esta aplicación.
-        Puedes reemplazar todos los datos actuales o combinarlos con los nuevos.
-      </p>
-      <div class="btn-row">
-        <button class="warn" onclick="document.getElementById('import-file').click()">📂 Seleccionar archivo .json</button>
-        <input type="file" id="import-file" accept=".json" onchange="importarBackup(event)">
-      </div>
-      <div id="msg-backup" class="msg"></div>
-    </div>
+document.getElementById('bubbleNewText').addEventListener('keydown', function(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') agregarComentario();
+});
 
-    <div class="card">
-      <div class="card-title">Estado del almacenamiento</div>
-      <div id="storage-info" style="font-size:13px;color:var(--text-sec);line-height:2"></div>
-    </div>
-  </div>
+/* ═══════════════════════════════════
+   MODAL EDICIÓN
+   ═══════════════════════════════════ */
+let editingId = null;
 
-</div><!-- /wrapper -->
+function abrirModal(id) {
+  const d = datos.find(d => d.id === id);
+  if (!d) return;
+  editingId = id;
+  document.getElementById('e-dni').value    = d.dni !== '—' ? d.dni : '';
+  document.getElementById('e-nombre').value = d.nombre !== '—' ? d.nombre : '';
+  document.getElementById('e-celular').value= d.celular !== '—' ? d.celular : '';
+  document.getElementById('e-fecha').value  = d.fecha !== '—' ? d.fecha : '';
+  document.getElementById('e-estado').value = d.estado;
+  document.getElementById('msg-edit').className = 'msg';
+  document.getElementById('editModalOverlay').classList.add('open');
+}
 
-<!-- ══ MODAL DE EDICIÓN ══ -->
-<div class="modal-overlay" id="editModalOverlay" onclick="cerrarModal(event)">
-  <div class="modal-box" onclick="event.stopPropagation()">
-    <div class="modal-header">
-      ✏️ Editar registro
-      <button class="bubble-close" onclick="cerrarModal()">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="form-grid">
-        <div class="field">
-          <label>DNI <span class="opt">(opcional)</span></label>
-          <input id="e-dni" placeholder="12345678" maxlength="20">
-        </div>
-        <div class="field">
-          <label>Nombre completo <span class="opt">(opcional)</span></label>
-          <input id="e-nombre" placeholder="Nombre y apellido">
-        </div>
-        <div class="field">
-          <label>Celular <span class="opt">(opcional)</span></label>
-          <input id="e-celular" placeholder="999 999 999" maxlength="20">
-        </div>
-        <div class="field">
-          <label>Fecha de contacto</label>
-          <input type="date" id="e-fecha">
-        </div>
-        <div class="field">
-          <label>Estado</label>
-          <select id="e-estado">
-            <option>Pendiente</option>
-            <option>Contactado</option>
-            <option>Cerrado</option>
-          </select>
-        </div>
-      </div>
-      <div id="msg-edit" class="msg"></div>
-    </div>
-    <div class="modal-footer">
-      <button onclick="cerrarModal()">Cancelar</button>
-      <button class="primary" onclick="guardarEdicionRegistro()">💾 Guardar cambios</button>
-    </div>
-  </div>
-</div>
+function cerrarModal(event) {
+  if (event && event.target !== document.getElementById('editModalOverlay')) return;
+  document.getElementById('editModalOverlay').classList.remove('open');
+  editingId = null;
+}
 
-<!-- ══ BURBUJA DE SEGUIMIENTO ══ -->
-<div class="bubble-overlay" id="bubbleOverlay" onclick="cerrarBurbuja()"></div>
-<div class="seg-bubble" id="segBubble">
-  <div class="bubble-header">
-    <div>
-      <div class="bubble-name" id="bubbleName">—</div>
-      <div style="font-size:11px;color:var(--text-ter)" id="bubbleDni">—</div>
-    </div>
-    <button class="bubble-close" onclick="cerrarBurbuja()">✕</button>
-  </div>
-  <div class="bubble-rec-row">
-    <label>📅 Recordatorio:</label>
-    <input type="date" id="bubbleRecDate" onchange="guardarRecordatorio()">
-    <span id="bubbleRecBadge" class="bubble-rec-badge" style="display:none"></span>
-  </div>
-  <div class="bubble-search-row" id="bubbleSearchRow" style="display:none">
-    <input type="text" id="bubbleSearchInput" placeholder="Buscar en comentarios..." oninput="filtrarComentarios()">
-    <span class="bubble-search-count" id="bubbleSearchCount"></span>
-  </div>
-  <div class="bubble-comments" id="bubbleComments"></div>
-  <div class="bubble-input-area">
-    <textarea id="bubbleNewText" placeholder="Agregar comentario de seguimiento..."></textarea>
-    <button class="primary bubble-add-btn" onclick="agregarComentario()">+ Agregar</button>
-  </div>
-</div>
+function guardarEdicionRegistro() {
+  if (!editingId) return;
+  const d = datos.find(d => d.id === editingId);
+  if (!d) return;
 
-<script>
+  const dni     = document.getElementById('e-dni').value.trim();
+  const nombre  = document.getElementById('e-nombre').value.trim();
+  const celular = document.getElementById('e-celular').value.trim();
+  const fecha   = document.getElementById('e-fecha').value;
+  const estado  = document.getElementById('e-estado').value;
 
-</script>
-</body>
-</html>
+  const dniLimpio = dni.replace(/\s/g, '');
+  if (dni && !/^\d+$/.test(dniLimpio)) {
+    mostrarMsg('El DNI solo debe contener números.', 'error', 'msg-edit'); return;
+  }
+  const duplicado = datos.find(x => x.dni === dni && x.id !== editingId);
+  if (dni && duplicado) {
+    mostrarMsg('Ya existe otro registro con ese DNI.', 'error', 'msg-edit'); return;
+  }
+
+  d.dni     = dni     || '—';
+  d.nombre  = nombre  || '—';
+  d.celular = celular || '—';
+  d.fecha   = fecha   || '—';
+  d.estado  = estado;
+
+  guardarDatos();
+  renderTabla();
+  actualizarStats();
+  actualizarAlertBadge();
+  document.getElementById('editModalOverlay').classList.remove('open');
+  editingId = null;
+  mostrarMsg('Registro actualizado correctamente.', 'success');
+}
+
+/* ═══════════════════════════════════
+   EXPORTAR EXCEL
+   ═══════════════════════════════════ */
+function exportarExcel() {
+  if (!datos.length) { mostrarMsg('No hay datos para exportar.'); return; }
+  const filas = datos.map((d, i) => ({
+    '#'                  : datos.length - i,
+    'DNI'               : d.dni,
+    'Nombre completo'   : d.nombre,
+    'Celular'           : d.celular,
+    'Fecha de contacto' : d.fecha,
+    'Estado'            : d.estado,
+    'Comentarios'       : (d.comentarios || []).map(c => `[${c.fecha}] ${c.texto}`).join(' | ')
+  }));
+  const ws = XLSX.utils.json_to_sheet(filas);
+  ws['!cols'] = [{ wch:5 },{ wch:12 },{ wch:28 },{ wch:14 },{ wch:18 },{ wch:14 },{ wch:60 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Contactos');
+  XLSX.writeFile(wb, `registros_contactos_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+/* ═══════════════════════════════════
+   VISTA PREVIA EXCEL
+   ═══════════════════════════════════ */
+function renderExcelPreview() {
+  const contenedor = document.getElementById('xl-preview');
+  if (!datos.length) {
+    contenedor.innerHTML = '<div class="empty">Aún no hay registros. Agrega algunos primero.</div>';
+    return;
+  }
+  const cols = ['#', 'DNI', 'Nombre completo', 'Celular', 'Fecha de contacto', 'Estado', 'Comentarios'];
+  const filas = datos.map((d, i) => [
+    datos.length - i, d.dni, d.nombre, d.celular, d.fecha, d.estado,
+    (d.comentarios || []).map(c => c.texto).join(' | ') || '—'
+  ]);
+  let html = '<table><thead><tr>' + cols.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+  filas.forEach(f => { html += '<tr>' + f.map(v => `<td title="${v}">${v}</td>`).join('') + '</tr>'; });
+  html += '</tbody></table>';
+  contenedor.innerHTML = html;
+}
+
+/* ═══════════════════════════════════
+   BACKUP JSON — EXPORTAR
+   ═══════════════════════════════════ */
+function exportarBackupJSON() {
+  if (!datos.length) { mostrarMsg('No hay datos para exportar.', 'error', 'msg-backup'); return; }
+  const payload = {
+    version: 2,
+    fecha_exportacion: new Date().toISOString(),
+    total: datos.length,
+    datos: datos
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `backup_contactos_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  mostrarMsg(`✅ Copia guardada con ${datos.length} registros.`, 'success', 'msg-backup');
+}
+
+/* ═══════════════════════════════════
+   BACKUP JSON — IMPORTAR
+   ═══════════════════════════════════ */
+function importarBackup(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const raw = JSON.parse(e.target.result);
+      let importados = [];
+
+      // Soportar formato con envoltorio {version, datos} o array directo
+      if (Array.isArray(raw)) {
+        importados = raw;
+      } else if (raw.datos && Array.isArray(raw.datos)) {
+        importados = raw.datos;
+      } else {
+        throw new Error('Formato no reconocido');
+      }
+
+      if (!importados.length) {
+        mostrarMsg('El archivo no contiene registros.', 'error', 'msg-backup');
+        return;
+      }
+
+      const opcion = confirm(
+        `Se encontraron ${importados.length} registros en el archivo.\n\n` +
+        `• Aceptar = REEMPLAZAR todos los datos actuales\n` +
+        `• Cancelar = COMBINAR (agrega los nuevos, mantiene los actuales)`
+      );
+
+      if (opcion) {
+        // Reemplazar
+        datos = importados;
+      } else {
+        // Combinar: evitar duplicados por id
+        const idsActuales = new Set(datos.map(d => d.id));
+        const nuevos = importados.filter(d => !idsActuales.has(d.id));
+        datos = [...datos, ...nuevos];
+        datos.sort((a, b) => b.id - a.id);
+        mostrarMsg(`✅ Combinados: ${nuevos.length} nuevos registros agregados.`, 'success', 'msg-backup');
+      }
+
+      // Migración de campo antiguo
+      datos.forEach(d => {
+        if (!d.comentarios) {
+          d.comentarios = d.seguimiento
+            ? [{ id: Date.now() + Math.random(), texto: d.seguimiento, fecha: d.fecha || 'Importado' }]
+            : [];
+          delete d.seguimiento;
+        }
+      });
+
+      guardarDatos();
+      renderTabla();
+      actualizarStats();
+      renderStorageInfo();
+      if (opcion) mostrarMsg(`✅ ${datos.length} registros restaurados correctamente.`, 'success', 'msg-backup');
+
+    } catch(err) {
+      mostrarMsg('❌ Error al leer el archivo. Asegúrate de usar un .json exportado desde esta app.', 'error', 'msg-backup');
+    }
+  };
+  reader.readAsText(file);
+  // Limpiar input para permitir volver a cargar el mismo archivo
+  event.target.value = '';
+}
+
+/* ═══════════════════════════════════
+   INFO DE ALMACENAMIENTO
+   ═══════════════════════════════════ */
+function renderStorageInfo() {
+  const raw   = localStorage.getItem(STORAGE_KEY) || '';
+  const kb    = (raw.length * 2 / 1024).toFixed(1);
+  const total = datos.length;
+  const conComentarios = datos.filter(d => d.comentarios && d.comentarios.length > 0).length;
+  const totalComentarios = datos.reduce((sum, d) => sum + (d.comentarios || []).length, 0);
+  const ultima = datos.length > 0 ? datos[0].id : null;
+  const ultimaFecha = ultima ? new Date(ultima).toLocaleString('es-PE') : '—';
+
+  document.getElementById('storage-info').innerHTML = `
+    <div>📦 <strong>Registros guardados:</strong> ${total}</div>
+    <div>💬 <strong>Total de comentarios:</strong> ${totalComentarios} (en ${conComentarios} contactos)</div>
+    <div>💾 <strong>Espacio usado:</strong> ~${kb} KB</div>
+    <div>🕐 <strong>Último registro agregado:</strong> ${ultimaFecha}</div>
+    <div>🔑 <strong>Clave en localStorage:</strong> <code style="font-family:var(--mono);font-size:11px">${STORAGE_KEY}</code></div>
+  `;
+}
+
+/* ═══════════════════════════════════
+   MIGRACIÓN: registros viejos
+   ═══════════════════════════════════ */
+datos.forEach(d => {
+  if (!d.comentarios) {
+    d.comentarios = d.seguimiento
+      ? [{ id: Date.now() + Math.random(), texto: d.seguimiento, fecha: d.fecha || 'Importado' }]
+      : [];
+    delete d.seguimiento;
+  }
+});
+guardarDatos();
+
+/* ═══════════════════════════════════
+   INICIO
+   ═══════════════════════════════════ */
+renderTabla();
+actualizarStats();
+actualizarAlertBadge();
